@@ -177,8 +177,8 @@ def get_week_totals(conn: sqlite3.Connection) -> tuple[int, int]:
             SELECT date, SUM(count) AS total FROM combined GROUP BY date
         )
         SELECT
-            COALESCE(SUM(CASE WHEN date >= date('now', '-6 days') THEN total ELSE 0 END), 0),
-            COALESCE(SUM(CASE WHEN date >= date('now', '-13 days') AND date < date('now', '-6 days') THEN total ELSE 0 END), 0)
+            COALESCE(SUM(CASE WHEN date >= date('now', 'localtime', '-6 days') THEN total ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN date >= date('now', 'localtime', '-13 days') AND date < date('now', 'localtime', '-6 days') THEN total ELSE 0 END), 0)
         FROM daily
     """).fetchone()
     return (row[0], row[1])

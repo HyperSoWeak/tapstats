@@ -226,7 +226,7 @@ class TodayView(Static):
             self.post_message(DrillDownExit())
 
 
-# ── stub panes (filled in Tasks 5-7) ─────────────────────────────────────────
+# ── keys tab ─────────────────────────────────────────────────────────────────
 
 class KeyboardHeatmap(Static):
     key_data: reactive[dict] = reactive({})
