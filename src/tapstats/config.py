@@ -16,6 +16,7 @@ class WaybarConfig:
     signal: int = 8
     top_keys_count: int = 5
     display: str = "keyboard"  # "keyboard", "mouse", "both"
+    compact: bool = True
 
 
 @dataclass
@@ -59,6 +60,7 @@ def _load() -> Config:
         cfg.waybar.signal = w.get("signal", cfg.waybar.signal)
         cfg.waybar.top_keys_count = w.get("top_keys_count", cfg.waybar.top_keys_count)
         cfg.waybar.display = w.get("display", cfg.waybar.display)
+        cfg.waybar.compact = w.get("compact", cfg.waybar.compact)
     if p := data.get("panel"):
         cfg.panel.history_days = p.get("history_days", cfg.panel.history_days)
     if db := data.get("db"):

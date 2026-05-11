@@ -37,13 +37,15 @@ def main() -> None:
     mouse = data["mouse"]
     clicks = mouse.get("left", 0) + mouse.get("right", 0) + mouse.get("middle", 0)
 
+    fmt = _fmt if cfg.waybar.compact else lambda n: f"{n:,}"
+
     match cfg.waybar.display:
         case "both":
-            text = f"󰌌 {_fmt(kb)}  󰍽 {_fmt(clicks)}"
+            text = f"󰌌 {fmt(kb)}  󰍽 {fmt(clicks)}"
         case "mouse":
-            text = f"󰍽 {_fmt(clicks)}"
+            text = f"󰍽 {fmt(clicks)}"
         case _:
-            text = f"󰌌 {_fmt(kb)}"
+            text = f"󰌌 {fmt(kb)}"
 
     n = cfg.waybar.top_keys_count
     top_lines = "\n".join(
