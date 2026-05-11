@@ -92,7 +92,7 @@ Then restart Waybar:
 systemctl --user restart waybar
 ```
 
-The module updates every second via signal. Hover to see today's top keys and mouse breakdown.
+The module updates every 5 seconds via signal. Hover to see today's top keys and mouse breakdown.
 
 ## Configuration
 
@@ -100,7 +100,7 @@ The module updates every second via signal. Hover to see today's top keys and mo
 
 ```toml
 [daemon]
-tick_interval = 1      # seconds between Waybar updates and SQLite flush check
+tick_interval = 5      # seconds between Waybar updates and SQLite flush check
 flush_interval = 30    # seconds between SQLite writes
 
 [waybar]

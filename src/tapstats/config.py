@@ -7,7 +7,7 @@ CONFIG_PATH = Path.home() / ".config/tapstats/config.toml"
 
 @dataclass
 class DaemonConfig:
-    tick_interval: float = 1.0
+    tick_interval: float = 5.0
     flush_interval: float = 30.0
 
 
