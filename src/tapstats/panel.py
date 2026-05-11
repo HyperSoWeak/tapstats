@@ -662,9 +662,10 @@ class TapStatsApp(App):
                     rt = json.loads(RUNTIME_JSON.read_text())
                     td = rt.get("today", {})
                     if td.get("date") == today:
-                        lt_stats["keyboard"] = rt["lifetime"]["keyboard"]
-                        lt_stats["mouse"] = rt["lifetime"]["mouse"]
-                        lt_stats["total"] = rt["lifetime"]["total"]
+                        lt = rt.get("lifetime", {})
+                        lt_stats["keyboard"] = lt.get("keyboard", lt_stats["keyboard"])
+                        lt_stats["mouse"] = lt.get("mouse", lt_stats["mouse"])
+                        lt_stats["total"] = lt.get("total", lt_stats["total"])
                 except Exception:
                     pass
             lifetime_view.stats = lt_stats
