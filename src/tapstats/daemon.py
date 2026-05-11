@@ -12,7 +12,7 @@ import evdev
 from evdev import InputDevice, ecodes
 
 from .config import get_config
-from .db import flush, get_db, load_today
+from .db import flush, get_db, get_lifetime_totals, load_today
 
 RUNTIME_JSON = Path(f"/run/user/{os.getuid()}/tapstats.json")
 
@@ -43,6 +43,14 @@ class Daemon:
         self._devices: dict[str, InputDevice] = {}
         self._today_date = str(date_type.today())
         self._last_flush = time.monotonic()
+        lt = get_lifetime_totals(self.db)
+        today_kb = sum(today_data["keys"].values())
+        today_clicks = sum(
+            v for k, v in today_data["mouse"].items()
+            if k not in ("scroll_up", "scroll_down")
+        )
+        self.lifetime_kb_base: int = lt["keyboard"] - today_kb
+        self.lifetime_mouse_base: int = lt["mouse"] - today_clicks
 
     def _find_devices(self) -> list[InputDevice]:
         devices = []
@@ -84,10 +92,26 @@ class Daemon:
 
     def _write_runtime(self) -> None:
         top = sorted(self.today_keys.items(), key=lambda x: x[1], reverse=True)[:10]
+        kb_today = sum(self.today_keys.values())
+        mouse_today = self.today_mouse
+        clicks_today = (
+            mouse_today.get("left", 0)
+            + mouse_today.get("right", 0)
+            + mouse_today.get("middle", 0)
+        )
+        lifetime_kb = self.lifetime_kb_base + kb_today
+        lifetime_mouse = self.lifetime_mouse_base + clicks_today
         data = {
-            "date": self._today_date,
-            "keyboard": {"total": sum(self.today_keys.values()), "top": top},
-            "mouse": dict(self.today_mouse),
+            "today": {
+                "date": self._today_date,
+                "keyboard": {"total": kb_today, "top": top},
+                "mouse": dict(mouse_today),
+            },
+            "lifetime": {
+                "keyboard": lifetime_kb,
+                "mouse": lifetime_mouse,
+                "total": lifetime_kb + lifetime_mouse,
+            },
         }
         tmp = RUNTIME_JSON.with_suffix(".tmp")
         tmp.write_text(json.dumps(data))
@@ -110,6 +134,9 @@ class Daemon:
             self.today_keys.clear()
             self.today_mouse.clear()
             self._today_date = today
+            lt = get_lifetime_totals(self.db)
+            self.lifetime_kb_base = lt["keyboard"]
+            self.lifetime_mouse_base = lt["mouse"]
 
     async def _tick(self) -> None:
         while True:
