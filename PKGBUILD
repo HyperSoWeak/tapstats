@@ -9,8 +9,9 @@ license=("MIT")
 depends=("python" "python-evdev" "python-textual")
 makedepends=("git" "python-build" "python-installer" "python-wheel" "python-hatchling")
 install=tapstats.install
-# For local builds, override with: source=("tapstats::git+file://$startdir")
-source=("tapstats::git+$url.git")
+source=("tapstats::git+file://$startdir")
+# Before publishing to AUR, change to:
+# source=("tapstats::git+$url.git")
 sha256sums=("SKIP")
 
 pkgver() {
