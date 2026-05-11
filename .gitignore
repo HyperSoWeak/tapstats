@@ -5,6 +5,9 @@ __pycache__/
 dist/
 uv.lock
 
+# brainstorming session files
+.superpowers/
+
 # makepkg build artifacts
 /_build/
 /tapstats/
