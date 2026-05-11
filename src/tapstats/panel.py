@@ -3,6 +3,9 @@ import os
 from datetime import date as date_type, timedelta
 from pathlib import Path
 
+from rich.style import Style
+from rich.text import Text
+
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal
@@ -13,6 +16,7 @@ from textual.widgets import ContentSwitcher, Footer, Static
 from .db import (
     get_db,
     get_day_stats,
+    get_top_keys,
 )
 from ._util import fmt_compact as _compact
 
@@ -219,9 +223,112 @@ class TodayView(Static):
 
 # ── stub panes (filled in Tasks 5-7) ─────────────────────────────────────────
 
-class KeysView(Static):
+class KeyboardHeatmap(Static):
+    key_data: reactive[dict] = reactive({})
+
+    def render(self) -> Text:
+        data = self.key_data
+        max_count = max(data.values(), default=1) if data else 1
+        text = Text()
+        for row in QWERTY_LAYOUT:
+            for key in row:
+                if key is None:
+                    text.append(" ")
+                    continue
+                name, label, width = key
+                count = data.get(name, 0)
+                level = _heat_level(count, max_count)
+                bg = HEAT_BG[level]
+                fg = HEAT_FG[level]
+                cell = label.center(width - 2)
+                text.append(f" {cell} ", style=Style(bgcolor=bg, color=fg))
+            text.append("\n")
+        # Legend
+        text.append("\n")
+        text.append("low ", style="dim")
+        for i, bg in enumerate(HEAT_BG):
+            text.append("  ", style=Style(bgcolor=bg))
+        text.append(" high", style="dim")
+        return text
+
+
+class KeysBars(Static):
+    key_data: reactive[dict] = reactive({})
+
     def render(self) -> str:
-        return "[dim]KEYS — coming in Task 5[/dim]"
+        if not self.key_data:
+            return "[dim]No data[/dim]"
+        items = sorted(self.key_data.items(), key=lambda x: x[1], reverse=True)
+        max_count = items[0][1] if items else 1
+        lines = []
+        for i, (name, count) in enumerate(items):
+            color = BAR_COLORS[i % len(BAR_COLORS)]
+            label = name.replace("KEY_", "")[:12]
+            bar = _bar(count, max_count, 22)
+            lines.append(f"[{color}]{label:<12}[/{color}]  [{color}]{bar}[/{color}]  [dim]{count:,}[/dim]")
+        return "\n".join(lines)
+
+
+class KeysView(Static):
+    BINDINGS = [
+        Binding("h", "mode_heatmap", "Heatmap", show=True),
+        Binding("b", "mode_bars",    "Bars",    show=True),
+        Binding("left",  "prev_day", "Prev day", show=False),
+        Binding("right", "next_day", "Next day", show=False),
+    ]
+
+    view_date: reactive[str] = reactive("")
+    mode: reactive[str] = reactive("heatmap")
+    key_data: reactive[dict] = reactive({})
+
+    def compose(self) -> ComposeResult:
+        yield Static(id="keys-header")
+        with ContentSwitcher(initial="keys-heatmap"):
+            yield KeyboardHeatmap(id="keys-heatmap")
+            yield KeysBars(id="keys-bars")
+
+    def on_mount(self) -> None:
+        self.view_date = str(date_type.today())
+
+    def watch_view_date(self, _: str) -> None:
+        self._load_data()
+
+    def watch_key_data(self, v: dict) -> None:
+        self.query_one(KeyboardHeatmap).key_data = v
+        self.query_one(KeysBars).key_data = v
+
+    def watch_mode(self, v: str) -> None:
+        switcher = self.query_one(ContentSwitcher)
+        switcher.current = "keys-heatmap" if v == "heatmap" else "keys-bars"
+        self._update_header()
+
+    def _load_data(self) -> None:
+        rows = get_top_keys(self.app.db, self.view_date, limit=None)  # type: ignore[attr-defined]
+        self.key_data = {r["key_name"]: r["count"] for r in rows}
+        self._update_header()
+
+    def _update_header(self) -> None:
+        mode_label = "heatmap (b: bars)" if self.mode == "heatmap" else "bars (h: heatmap)"
+        is_today = self.view_date == str(date_type.today())
+        date_label = "today" if is_today else self.view_date
+        self.query_one("#keys-header", Static).update(
+            f"[bold]KEYS[/bold]  [dim]{date_label}  ←/→ navigate days  {mode_label}[/dim]"
+        )
+
+    def action_mode_heatmap(self) -> None:
+        self.mode = "heatmap"
+
+    def action_mode_bars(self) -> None:
+        self.mode = "bars"
+
+    def action_prev_day(self) -> None:
+        d = date_type.fromisoformat(self.view_date) - timedelta(days=1)
+        self.view_date = str(d)
+
+    def action_next_day(self) -> None:
+        d = date_type.fromisoformat(self.view_date) + timedelta(days=1)
+        if d <= date_type.today():
+            self.view_date = str(d)
 
 
 class HistoryView(Static):
@@ -272,9 +379,24 @@ class TapStatsApp(App):
         width: 30;
         padding-left: 2;
     }
-    KeysView, HistoryView, LifetimeView {
+    HistoryView, LifetimeView {
         height: 100%;
         padding: 1 2;
+    }
+    KeysView {
+        height: 100%;
+        padding: 1 2;
+    }
+    #keys-header {
+        height: 1;
+        margin-bottom: 1;
+    }
+    KeyboardHeatmap {
+        height: auto;
+    }
+    KeysBars {
+        height: 1fr;
+        overflow-y: auto;
     }
     Footer {
         background: $surface;
@@ -323,6 +445,11 @@ class TapStatsApp(App):
         today = str(date_type.today())
         today_view = self.query_one(TodayView)
 
+        # Refresh KEYS if active
+        current = self.query_one(ContentSwitcher).current
+        if current == "keys":
+            self.query_one(KeysView)._load_data()
+
         if today_view.pinned_date:
             stats = get_day_stats(self.db, today_view.pinned_date)
             today_view.keyboard_total = stats["keyboard_total"]
@@ -330,7 +457,6 @@ class TapStatsApp(App):
             today_view.mouse = stats["mouse"]
             return
 
-        # Try runtime JSON first (live data)
         if RUNTIME_JSON.exists():
             try:
                 data = json.loads(RUNTIME_JSON.read_text())
@@ -343,7 +469,6 @@ class TapStatsApp(App):
             except Exception:
                 pass
 
-        # Fall back to DB
         stats = get_day_stats(self.db, today)
         today_view.keyboard_total = stats["keyboard_total"]
         today_view.top_keys = stats["top_keys"]
