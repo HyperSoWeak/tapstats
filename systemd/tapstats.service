@@ -1,0 +1,13 @@
+[Unit]
+Description=tapstats input tracking daemon
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/tapstats-daemon
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+
+[Install]
+WantedBy=graphical-session.target

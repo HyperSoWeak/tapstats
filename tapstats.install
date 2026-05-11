@@ -1,0 +1,22 @@
+post_install() {
+    echo ""
+    echo "  tapstats installed."
+    echo ""
+    echo "  1. Add yourself to the input group (requires re-login):"
+    echo "     sudo usermod -aG input \$USER"
+    echo ""
+    echo "  2. Enable and start the daemon:"
+    echo "     systemctl --user enable --now tapstats"
+    echo ""
+    echo "  3. Add to waybar config:"
+    echo '     "custom/tapstats": {'
+    echo '         "exec": "tapstats-waybar",'
+    echo '         "return-type": "json",'
+    echo '         "signal": 8'
+    echo '     }'
+    echo ""
+}
+
+post_upgrade() {
+    post_install
+}
