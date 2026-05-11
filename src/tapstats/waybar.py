@@ -45,7 +45,7 @@ def _format_output(data: dict, cfg) -> str | None:
     )
 
     tooltip = (
-        f"TAPSTATS  {today['date']}\n\n"
+        f"TAPSTATS  {today.get('date', '')}\n\n"
         f"KEYBOARD  {kb:,}\n"
         f"{top_lines}\n\n"
         f"MOUSE\n"

@@ -26,7 +26,7 @@ def _data(kb=1000, clicks=200, scroll_up=500, lifetime_total=50000, top=None):
     }
 
 
-def test_total_mode_text(tmp_path):
+def test_total_mode_text():
     result = json.loads(_format_output(_data(kb=1000, clicks=200), _cfg(display="total")))
     assert "1.2k" in result["text"]  # 1000+200=1200
 
