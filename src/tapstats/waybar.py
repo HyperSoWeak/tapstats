@@ -7,7 +7,14 @@ from .config import get_config
 
 RUNTIME_JSON = Path(f"/run/user/{os.getuid()}/tapstats.json")
 
-_FALLBACK = json.dumps({"text": "⌨ —  🖱 —", "tooltip": "tapstats not running"})
+_FALLBACK = json.dumps({"text": "󰌌 —", "tooltip": "tapstats not running"})
+
+
+def _fmt(n: int) -> str:
+    if n >= 1000:
+        v = n / 1000
+        return f"{v:.1f}k" if v % 1 else f"{int(v)}k"
+    return str(n)
 
 
 def main() -> None:
@@ -25,11 +32,20 @@ def main() -> None:
         print(_FALLBACK)
         return
 
+    cfg = get_config()
     kb = data["keyboard"]["total"]
     mouse = data["mouse"]
     clicks = mouse.get("left", 0) + mouse.get("right", 0) + mouse.get("middle", 0)
 
-    n = get_config().waybar.top_keys_count
+    match cfg.waybar.display:
+        case "both":
+            text = f"󰌌 {_fmt(kb)}  󰍽 {_fmt(clicks)}"
+        case "mouse":
+            text = f"󰍽 {_fmt(clicks)}"
+        case _:
+            text = f"󰌌 {_fmt(kb)}"
+
+    n = cfg.waybar.top_keys_count
     top_lines = "\n".join(
         f"  {name.replace('KEY_', ''):<10} {count:,}"
         for name, count in data["keyboard"]["top"][:n]
@@ -44,4 +60,4 @@ def main() -> None:
         f"  Scroll ↑ {mouse.get('scroll_up', 0):,}  ↓ {mouse.get('scroll_down', 0):,}"
     )
 
-    print(json.dumps({"text": f"⌨ {kb:,}  🖱 {clicks:,}", "tooltip": tooltip}))
+    print(json.dumps({"text": text, "tooltip": tooltip}))

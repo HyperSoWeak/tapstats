@@ -149,6 +149,7 @@ flush_interval = 30    # seconds between SQLite writes
 [waybar]
 signal = 8             # Waybar signal number (RTMIN+N)
 top_keys_count = 5     # keys shown in Waybar tooltip
+display = "keyboard"   # what to show: "keyboard", "mouse", "both"
 
 [panel]
 history_days = 14      # days shown in TUI history chart
