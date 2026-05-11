@@ -36,11 +36,11 @@ def main() -> None:
     )
 
     tooltip = (
-        f"Today — {data['date']}\n\n"
-        f"Keyboard  {kb:,}\n"
+        f"TAPSTATS  {data['date']}\n\n"
+        f"KEYBOARD  {kb:,}\n"
         f"{top_lines}\n\n"
-        f"Mouse\n"
-        f"  Left   {mouse.get('left', 0):,}  Right  {mouse.get('right', 0):,}  Middle {mouse.get('middle', 0):,}\n"
+        f"MOUSE\n"
+        f"  Left {mouse.get('left', 0):,}  Right {mouse.get('right', 0):,}  Middle {mouse.get('middle', 0):,}\n"
         f"  Scroll ↑ {mouse.get('scroll_up', 0):,}  ↓ {mouse.get('scroll_down', 0):,}"
     )
 
