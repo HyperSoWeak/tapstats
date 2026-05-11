@@ -55,7 +55,6 @@ def flush(
     mouse: dict[str, int],
     today: str,
 ) -> None:
-    """keys: {key_name: (key_code, count)}, mouse: {button: count}"""
     with conn:
         for name, (code, count) in keys.items():
             conn.execute(
@@ -77,28 +76,123 @@ def flush(
             )
 
 
-def get_top_keys(conn: sqlite3.Connection, date: str, limit: int = 15) -> list[dict]:
-    rows = conn.execute(
-        "SELECT key_name, count FROM daily_keys WHERE date = ? ORDER BY count DESC LIMIT ?",
-        (date, limit),
-    ).fetchall()
+def get_top_keys(conn: sqlite3.Connection, date: str, limit: int | None = 15) -> list[dict]:
+    if limit is None:
+        rows = conn.execute(
+            "SELECT key_name, count FROM daily_keys WHERE date = ? ORDER BY count DESC",
+            (date,),
+        ).fetchall()
+    else:
+        rows = conn.execute(
+            "SELECT key_name, count FROM daily_keys WHERE date = ? ORDER BY count DESC LIMIT ?",
+            (date, limit),
+        ).fetchall()
     return [dict(r) for r in rows]
 
 
-def get_history(conn: sqlite3.Connection, days: int = 14) -> list[dict]:
-    rows = conn.execute(
+def get_history(conn: sqlite3.Connection, days: int = 14, mode: str = "total") -> list[dict]:
+    if mode == "keyboard":
+        sql = """
+            SELECT date, SUM(count) AS total FROM daily_keys
+            GROUP BY date ORDER BY date DESC LIMIT ?
         """
+    elif mode == "mouse":
+        sql = """
+            SELECT date, SUM(count) AS total FROM daily_mouse
+            WHERE button NOT IN ('scroll_up', 'scroll_down')
+            GROUP BY date ORDER BY date DESC LIMIT ?
+        """
+    else:
+        sql = """
+            WITH combined AS (
+                SELECT date, count FROM daily_keys
+                UNION ALL
+                SELECT date, count FROM daily_mouse
+                WHERE button NOT IN ('scroll_up', 'scroll_down')
+            )
+            SELECT date, SUM(count) AS total FROM combined
+            GROUP BY date ORDER BY date DESC LIMIT ?
+        """
+    rows = conn.execute(sql, (days,)).fetchall()
+    return [dict(r) for r in reversed(rows)]
+
+
+def get_lifetime_totals(conn: sqlite3.Connection) -> dict:
+    kb = conn.execute(
+        "SELECT COALESCE(SUM(count), 0) FROM daily_keys"
+    ).fetchone()[0]
+    mouse = conn.execute(
+        "SELECT COALESCE(SUM(count), 0) FROM daily_mouse WHERE button NOT IN ('scroll_up', 'scroll_down')"
+    ).fetchone()[0]
+    return {"keyboard": kb, "mouse": mouse, "total": kb + mouse}
+
+
+def get_lifetime_stats(conn: sqlite3.Connection) -> dict:
+    totals = get_lifetime_totals(conn)
+
+    row = conn.execute("""
+        SELECT MIN(date) AS first_date, COUNT(DISTINCT date) AS active_days
+        FROM (SELECT date FROM daily_keys UNION SELECT date FROM daily_mouse)
+    """).fetchone()
+
+    record_row = conn.execute("""
         WITH combined AS (
             SELECT date, count FROM daily_keys
             UNION ALL
             SELECT date, count FROM daily_mouse
+            WHERE button NOT IN ('scroll_up', 'scroll_down')
         )
-        SELECT date, SUM(count) AS total
-        FROM combined
-        GROUP BY date
-        ORDER BY date DESC
-        LIMIT ?
+        SELECT date, SUM(count) AS total FROM combined
+        GROUP BY date ORDER BY total DESC LIMIT 1
+    """).fetchone()
+
+    return {
+        **totals,
+        "first_date": row["first_date"] or str(date_type.today()),
+        "active_days": row["active_days"] or 0,
+        "record_date": record_row["date"] if record_row else "",
+        "record_total": record_row["total"] if record_row else 0,
+    }
+
+
+def get_all_time_top_keys(conn: sqlite3.Connection, limit: int = 20) -> list[tuple[str, int]]:
+    rows = conn.execute(
+        """
+        SELECT key_name, SUM(count) AS total FROM daily_keys
+        GROUP BY key_name ORDER BY total DESC LIMIT ?
         """,
-        (days,),
+        (limit,),
     ).fetchall()
-    return [dict(r) for r in reversed(rows)]
+    return [(r["key_name"], r["total"]) for r in rows]
+
+
+def get_week_totals(conn: sqlite3.Connection) -> tuple[int, int]:
+    row = conn.execute("""
+        WITH combined AS (
+            SELECT date, count FROM daily_keys
+            UNION ALL
+            SELECT date, count FROM daily_mouse
+            WHERE button NOT IN ('scroll_up', 'scroll_down')
+        ), daily AS (
+            SELECT date, SUM(count) AS total FROM combined GROUP BY date
+        )
+        SELECT
+            COALESCE(SUM(CASE WHEN date >= date('now', '-6 days') THEN total ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN date >= date('now', '-13 days') AND date < date('now', '-6 days') THEN total ELSE 0 END), 0)
+        FROM daily
+    """).fetchone()
+    return (row[0], row[1])
+
+
+def get_day_stats(conn: sqlite3.Connection, date: str, top_limit: int = 15) -> dict:
+    kb_total = conn.execute(
+        "SELECT COALESCE(SUM(count), 0) FROM daily_keys WHERE date = ?", (date,)
+    ).fetchone()[0]
+    top_keys = [(r["key_name"], r["count"]) for r in get_top_keys(conn, date, top_limit)]
+    mouse = {
+        row["button"]: row["count"]
+        for row in conn.execute(
+            "SELECT button, count FROM daily_mouse WHERE date = ?", (date,)
+        )
+    }
+    return {"keyboard_total": kb_total, "top_keys": top_keys, "mouse": mouse}
