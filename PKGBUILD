@@ -1,6 +1,6 @@
 # Maintainer: Hyper Hu <hypersoweak@gmail.com>
 pkgname=tapstats-git
-pkgver=r17.bf9e677
+pkgver=r18.5af0554
 pkgrel=1
 pkgdesc="Keyboard and mouse input statistics for Wayland with Waybar integration"
 arch=("x86_64")

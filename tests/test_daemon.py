@@ -2,8 +2,6 @@ import json
 from datetime import date as date_type
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from tapstats.daemon import Daemon
 
 
@@ -78,7 +76,7 @@ def test_write_runtime_lifetime_excludes_scroll(tmp_path):
     assert lifetime["total"] == 1220
 
 
-def test_date_rollover_preserves_lifetime_base(tmp_path):
+def test_date_rollover_refreshes_lifetime_base_from_db(tmp_path):
     d, path = _make_daemon(tmp_path, lifetime_kb_base=5000, lifetime_mouse_base=1000)
     d._today_date = "2026-05-11"
 

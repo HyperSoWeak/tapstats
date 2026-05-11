@@ -49,6 +49,7 @@ class Daemon:
             v for k, v in today_data["mouse"].items()
             if k not in ("scroll_up", "scroll_down")
         )
+        # Subtract today's already-committed portion to avoid double-counting when we add live today totals at write time.
         self.lifetime_kb_base: int = lt["keyboard"] - today_kb
         self.lifetime_mouse_base: int = lt["mouse"] - today_clicks
 
