@@ -15,9 +15,11 @@ from textual.widgets import ContentSwitcher, Footer, ListItem, ListView, Static
 
 from .config import get_config
 from .db import (
+    get_all_time_top_keys,
     get_db,
     get_day_stats,
     get_history,
+    get_lifetime_stats,
     get_top_keys,
     get_week_totals,
 )
@@ -436,8 +438,60 @@ class HistoryView(Static):
 
 
 class LifetimeView(Static):
-    def render(self) -> str:
-        return "[dim]LIFETIME — coming in Task 7[/dim]"
+    stats: reactive[dict] = reactive({})
+    top_keys: reactive[list] = reactive([])
+
+    def compose(self) -> ComposeResult:
+        yield Static(id="lifetime-header")
+        with Horizontal(id="lifetime-cols"):
+            yield Static(id="lifetime-bars")
+            yield Static(id="lifetime-stats")
+
+    def watch_stats(self, v: dict) -> None:
+        self._update_header(v)
+        self._update_stats(v)
+
+    def watch_top_keys(self, v: list) -> None:
+        self._update_bars(v)
+
+    def _update_header(self, v: dict) -> None:
+        total = v.get("total", 0)
+        kb = v.get("keyboard", 0)
+        mouse = v.get("mouse", 0)
+        first = v.get("first_date", "")
+        days = v.get("active_days", 0)
+        self.query_one("#lifetime-header", Static).update(
+            f"[bold]ALL-TIME TOTAL ACTIONS[/bold]  [dim]since {first}[/dim]\n"
+            f"[bold #ff9e64]{total:,}[/bold #ff9e64]\n"
+            f"[dim]\U000f030c {kb:,}  \U000f037d {mouse:,}  ({days} active days)[/dim]"
+        )
+
+    def _update_bars(self, keys: list) -> None:
+        if not keys:
+            self.query_one("#lifetime-bars", Static).update("[dim]No data[/dim]")
+            return
+        max_count = keys[0][1] if keys else 1
+        lines = ["[bold]ALL-TIME TOP KEYS[/bold]\n"]
+        for i, (name, count) in enumerate(keys):
+            color = BAR_COLORS[i % len(BAR_COLORS)]
+            label = name.replace("KEY_", "")[:12]
+            bar = _bar(count, max_count, 22)
+            lines.append(f"[{color}]{label:<12}[/{color}]  [{color}]{bar}[/{color}]  [dim]{count:,}[/dim]")
+        self.query_one("#lifetime-bars", Static).update("\n".join(lines))
+
+    def _update_stats(self, v: dict) -> None:
+        total = v.get("total", 0)
+        days = v.get("active_days", 0)
+        daily_avg = total // days if days else 0
+        record_total = v.get("record_total", 0)
+        record_date = v.get("record_date", "—")
+        self.query_one("#lifetime-stats", Static).update(
+            f"[bold]STATS[/bold]\n\n"
+            f"[dim]Active days[/dim]   [green]{days:,}[/green]\n"
+            f"[dim]Daily avg  [/dim]   [green]{daily_avg:,}[/green]\n\n"
+            f"[dim]Record day [/dim]   [#ff9e64]{record_total:,}[/#ff9e64]\n"
+            f"[dim]           [/dim]   [dim]{record_date}[/dim]"
+        )
 
 
 # ── app ───────────────────────────────────────────────────────────────────────
@@ -481,6 +535,24 @@ class TapStatsApp(App):
     LifetimeView {
         height: 100%;
         padding: 1 2;
+    }
+    #lifetime-header {
+        height: 5;
+        border-bottom: solid $accent-darken-1;
+        margin-bottom: 1;
+    }
+    #lifetime-cols {
+        height: 1fr;
+    }
+    #lifetime-bars {
+        width: 1fr;
+        padding-right: 2;
+        border-right: solid $accent-darken-1;
+        overflow-y: auto;
+    }
+    #lifetime-stats {
+        width: 30;
+        padding-left: 2;
     }
     HistoryView {
         height: 100%;
@@ -580,6 +652,23 @@ class TapStatsApp(App):
         tw, lw = get_week_totals(self.db)
         hist_view.this_week = tw
         hist_view.last_week = lw
+
+        lifetime_view = self.query_one(LifetimeView)
+        if current == "lifetime":
+            lt_stats = get_lifetime_stats(self.db)
+            # Merge live today data from runtime JSON if available
+            if RUNTIME_JSON.exists():
+                try:
+                    rt = json.loads(RUNTIME_JSON.read_text())
+                    td = rt.get("today", {})
+                    if td.get("date") == today:
+                        lt_stats["keyboard"] = rt["lifetime"]["keyboard"]
+                        lt_stats["mouse"] = rt["lifetime"]["mouse"]
+                        lt_stats["total"] = rt["lifetime"]["total"]
+                except Exception:
+                    pass
+            lifetime_view.stats = lt_stats
+            lifetime_view.top_keys = get_all_time_top_keys(self.db, limit=20)
 
         if today_view.pinned_date:
             stats = get_day_stats(self.db, today_view.pinned_date)
