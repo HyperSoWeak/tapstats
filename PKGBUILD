@@ -1,6 +1,6 @@
 # Maintainer: your name <your@email.com>
 pkgname=tapstats-git
-pkgver=r1.0000000
+pkgver=r8.3583e34
 pkgrel=1
 pkgdesc="Keyboard and mouse input statistics for Wayland with Waybar integration"
 arch=("x86_64")

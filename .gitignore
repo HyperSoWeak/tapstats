@@ -4,3 +4,10 @@ __pycache__/
 .venv/
 dist/
 uv.lock
+
+# makepkg build artifacts
+_build/
+tapstats/
+src/_build/
+pkg/
+*.pkg.tar.zst
