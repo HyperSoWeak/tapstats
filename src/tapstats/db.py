@@ -2,12 +2,12 @@ import sqlite3
 from datetime import date as date_type
 from pathlib import Path
 
-DB_PATH = Path.home() / ".local/share/tapstats/stats.db"
-
 
 def get_db() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+    from .config import get_config
+    path = Path(get_config().db.path).expanduser()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     _init(conn)
     return conn

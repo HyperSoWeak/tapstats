@@ -3,6 +3,8 @@ import os
 from datetime import date as date_type
 from pathlib import Path
 
+from .config import get_config
+
 RUNTIME_JSON = Path(f"/run/user/{os.getuid()}/tapstats.json")
 
 _FALLBACK = json.dumps({"text": "⌨ —  🖱 —", "tooltip": "tapstats not running"})
@@ -27,9 +29,10 @@ def main() -> None:
     mouse = data["mouse"]
     clicks = mouse.get("left", 0) + mouse.get("right", 0) + mouse.get("middle", 0)
 
+    n = get_config().waybar.top_keys_count
     top_lines = "\n".join(
         f"  {name.replace('KEY_', ''):<10} {count:,}"
-        for name, count in data["keyboard"]["top"][:5]
+        for name, count in data["keyboard"]["top"][:n]
     )
 
     tooltip = (

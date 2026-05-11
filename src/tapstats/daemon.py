@@ -11,13 +11,10 @@ from pathlib import Path
 import evdev
 from evdev import InputDevice, ecodes
 
+from .config import get_config
 from .db import flush, get_db, load_today
 
 RUNTIME_JSON = Path(f"/run/user/{os.getuid()}/tapstats.json")
-WAYBAR_SIGNUM = signal.SIGRTMIN + 8
-
-TICK_INTERVAL = 1.0
-FLUSH_INTERVAL = 30.0
 
 MOUSE_BUTTONS = {
     ecodes.BTN_LEFT: "left",
@@ -33,6 +30,10 @@ def _key_name(code: int) -> str:
 
 class Daemon:
     def __init__(self) -> None:
+        cfg = get_config()
+        self._tick_interval = cfg.daemon.tick_interval
+        self._flush_interval = cfg.daemon.flush_interval
+        self._waybar_signum = signal.SIGRTMIN + cfg.waybar.signal
         self.db = get_db()
         today_data = load_today(self.db)
         self.today_keys: dict[str, int] = dict(today_data["keys"])
@@ -93,7 +94,7 @@ class Daemon:
         tmp.rename(RUNTIME_JSON)
 
     def _signal_waybar(self) -> None:
-        subprocess.run(["pkill", f"-{WAYBAR_SIGNUM}", "waybar"], capture_output=True)
+        subprocess.run(["pkill", f"-{self._waybar_signum}", "waybar"], capture_output=True)
 
     def _do_flush(self) -> None:
         if self.buf_keys or self.buf_mouse:
@@ -112,11 +113,11 @@ class Daemon:
 
     async def _tick(self) -> None:
         while True:
-            await asyncio.sleep(TICK_INTERVAL)
+            await asyncio.sleep(self._tick_interval)
             self._check_date_rollover()
             self._write_runtime()
             self._signal_waybar()
-            if time.monotonic() - self._last_flush >= FLUSH_INTERVAL:
+            if time.monotonic() - self._last_flush >= self._flush_interval:
                 self._do_flush()
 
     async def _watch_devices(self) -> None:
