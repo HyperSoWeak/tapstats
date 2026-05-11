@@ -4,16 +4,12 @@ Track daily keyboard and mouse activity. Shows live stats in Waybar and a dashbo
 
 Built for Wayland — reads input directly via `evdev`. All data is stored locally in SQLite and never deleted.
 
----
-
 ## Requirements
 
 - Arch Linux (or any distro with `evdev` support)
 - Python 3.11+
 - User in the `input` group (see [Setup](#setup))
 - Waybar (optional)
-
----
 
 ## Installation
 
@@ -43,8 +39,6 @@ uv pip install -e .
 
 Scripts are available via `uv run tapstats`, `uv run tapstats-daemon`, `uv run tapstats-waybar`.
 
----
-
 ## Setup
 
 ### 1. Join the `input` group
@@ -70,37 +64,11 @@ systemctl --user status tapstats
 journalctl --user -u tapstats -f
 ```
 
----
-
 ## TUI
 
 ```bash
 tapstats
 ```
-
-```
-┏━ TAPSTATS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 2026-05-11    󰌌  4,521    󰍽  234                                ┃
-┠──────────────────────────┰───────────────────────────────────────┨
-┃ KEYBOARD                 ┃ TOP KEYS                              ┃
-┃   Total          4,521   ┃ Space       ████████████████████  812 ┃
-┃                          ┃ E           █████████████         601 ┃
-┃ MOUSE                    ┃ Backspace   ██████████            489 ┃
-┃   Left             234   ┃ A           ████████              312 ┃
-┃   Right             45   ┃ T           ███████               287 ┃
-┠──────────────────────────┸───────────────────────────────────────┨
-┃ 14 DAYS  ▁▂▁▃▅▇▆▄▂▅▇▆▅▄                                        ┃
-┃ 2026-04-28  ████████████                    2,341               ┃
-┃ 2026-04-29  ██████████████████              3,891               ┃
-┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
-```
-
-| Key | Action  |
-|-----|---------|
-| `r` | Refresh |
-| `q` | Quit    |
-
----
 
 ## Waybar
 
@@ -110,20 +78,11 @@ Add to `~/.config/waybar/config.jsonc`:
 "modules-right": ["custom/tapstats", ...],
 
 "custom/tapstats": {
-    "exec": "tapstats-waybar",
-    "return-type": "json",
-    "signal": 8,
-    "tooltip": true,
-    "on-click": "kitty tapstats"
-}
-```
-
-Add to `~/.config/waybar/style.css`:
-
-```css
-#custom-tapstats {
-    padding: 0 9px;
-    color: #c5d0e8;
+  "exec": "tapstats-waybar",
+  "return-type": "json",
+  "signal": 8,
+  "tooltip": true,
+  "on-click": "kitty tapstats"
 }
 ```
 
@@ -134,8 +93,6 @@ systemctl --user restart waybar
 ```
 
 The module updates every second via signal. Hover to see today's top keys and mouse breakdown.
-
----
 
 ## Configuration
 
@@ -158,8 +115,6 @@ history_days = 14      # days of history shown in the TUI chart
 [db]
 path = "~/.local/share/tapstats/stats.db"
 ```
-
----
 
 ## Data
 
