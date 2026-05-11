@@ -4,16 +4,12 @@ from datetime import date as date_type
 from pathlib import Path
 
 from .config import get_config
+from ._util import fmt_compact
 
 RUNTIME_JSON = Path(f"/run/user/{os.getuid()}/tapstats.json")
 _FALLBACK = json.dumps({"text": "󰌌 —", "tooltip": "tapstats not running"})
 
-
-def _fmt(n: int) -> str:
-    if n >= 1000:
-        v = n / 1000
-        return f"{v:.1f}k" if v % 1 else f"{int(v)}k"
-    return str(n)
+_fmt = fmt_compact
 
 
 def _format_output(data: dict, cfg) -> str | None:

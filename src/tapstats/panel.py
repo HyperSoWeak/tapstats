@@ -3,25 +3,18 @@ import os
 from datetime import date as date_type, timedelta
 from pathlib import Path
 
-from rich.style import Style
-from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, Vertical, ScrollableContainer
+from textual.containers import Horizontal
 from textual.message import Message
 from textual.reactive import reactive
-from textual.widgets import ContentSwitcher, Footer, ListItem, ListView, Static
+from textual.widgets import ContentSwitcher, Footer, Static
 
-from .config import get_config
 from .db import (
-    get_all_time_top_keys,
     get_db,
     get_day_stats,
-    get_history,
-    get_lifetime_stats,
-    get_top_keys,
-    get_week_totals,
 )
+from ._util import fmt_compact as _compact
 
 RUNTIME_JSON = Path(f"/run/user/{os.getuid()}/tapstats.json")
 SPARK = " ▁▂▃▄▅▆▇█"
@@ -96,13 +89,6 @@ def _spark_char(value: int, max_val: int) -> str:
     if max_val == 0:
         return SPARK[0]
     return SPARK[min(8, round(value / max_val * 8))]
-
-
-def _compact(n: int) -> str:
-    if n >= 1000:
-        v = n / 1000
-        return f"{v:.1f}k" if v % 1 else f"{int(v)}k"
-    return str(n)
 
 
 # ── messages ─────────────────────────────────────────────────────────────────
@@ -334,7 +320,6 @@ class TapStatsApp(App):
         self._switch_tab(self._TAB_ORDER[(idx + 1) % len(self._TAB_ORDER)])
 
     def action_refresh(self) -> None:
-        cfg = get_config()
         today = str(date_type.today())
         today_view = self.query_one(TodayView)
 
