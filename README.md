@@ -1,6 +1,6 @@
 # tapstats
 
-Track daily keyboard and mouse activity. Shows live stats in Waybar and a dashboard TUI.
+Track daily keyboard and mouse activity. Shows live stats in Waybar and a 4-tab TUI dashboard.
 
 Built for Wayland — reads input directly via `evdev`. All data is stored locally in SQLite and never deleted.
 
@@ -70,6 +70,17 @@ journalctl --user -u tapstats -f
 tapstats
 ```
 
+Four tabs, navigate with `1`–`4` or `Tab`:
+
+| Tab | Content |
+|-----|---------|
+| **TODAY** | Total actions (keys + clicks), keyboard top-5 bar chart, mouse breakdown with scroll lines |
+| **KEYS** | Full QWERTY heatmap colored by press frequency; press `b` for ranked bar chart, `h` for heatmap; `←`/`→` to navigate days |
+| **HISTORY** | Per-day sparkline + bar list; `↑`/`↓` to move cursor, `Enter` to drill into a day, `Esc` to return; `k`/`m`/`t` to filter by keyboard / mouse / total |
+| **LIFETIME** | All-time cumulative total, all-time top keys, daily average, record day |
+
+Other keys: `r` refresh, `q` quit.
+
 ## Waybar
 
 Add to `~/.config/waybar/config.jsonc`:
@@ -92,7 +103,7 @@ Then restart Waybar:
 systemctl --user restart waybar
 ```
 
-The module updates every 5 seconds via signal. Hover to see today's top keys and mouse breakdown.
+The module updates every 5 seconds via signal. Hover to see today's top keys, mouse breakdown, and all-time total.
 
 ## Configuration
 
@@ -105,12 +116,12 @@ flush_interval = 30    # seconds between SQLite writes
 
 [waybar]
 signal = 8             # Waybar signal number (RTMIN+N), must match config.jsonc
-display = "keyboard"   # "keyboard" | "mouse" | "both"
-compact = true         # true → "󰌌 1.2k"  /  false → "󰌌 1,234"
+display = "total"      # "total" | "keyboard" | "mouse" | "both"
+compact = true         # true → "󰌌 󰍽 1.2k"  /  false → "󰌌 󰍽 1,234"
 top_keys_count = 5     # number of keys shown in the tooltip
 
 [panel]
-history_days = 14      # days of history shown in the TUI chart
+history_days = 14      # days of history shown in the HISTORY tab
 
 [db]
 path = "~/.local/share/tapstats/stats.db"
@@ -119,6 +130,8 @@ path = "~/.local/share/tapstats/stats.db"
 ## Data
 
 All history is kept in SQLite at `~/.local/share/tapstats/stats.db`. The `history_days` setting only affects what the TUI displays — nothing is ever deleted.
+
+Scroll wheel events (`scroll_up`, `scroll_down`) are recorded but excluded from all action totals. They are shown separately as lines scrolled.
 
 Useful queries:
 
