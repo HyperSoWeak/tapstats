@@ -290,7 +290,9 @@ class KeysView(Static):
     def on_mount(self) -> None:
         self.view_date = str(date_type.today())
 
-    def watch_view_date(self, _: str) -> None:
+    def watch_view_date(self, new: str) -> None:
+        if not new:
+            return
         self._load_data()
 
     def watch_key_data(self, v: dict) -> None:
@@ -303,6 +305,8 @@ class KeysView(Static):
         self._update_header()
 
     def _load_data(self) -> None:
+        if not hasattr(self.app, "db"):
+            return
         rows = get_top_keys(self.app.db, self.view_date, limit=None)  # type: ignore[attr-defined]
         self.key_data = {r["key_name"]: r["count"] for r in rows}
         self._update_header()
