@@ -1,6 +1,6 @@
 # Maintainer: Hyper Hu <hypersoweak@gmail.com>
 pkgname=tapstats-git
-pkgver=r8.3583e34
+pkgver=r13.a06f2b6
 pkgrel=1
 pkgdesc="Keyboard and mouse input statistics for Wayland with Waybar integration"
 arch=("x86_64")
@@ -9,9 +9,7 @@ license=("MIT")
 depends=("python" "python-evdev" "python-textual")
 makedepends=("git" "python-build" "python-installer" "python-wheel" "python-hatchling")
 install=tapstats.install
-source=("_build::git+file://$startdir")
-# Before publishing to AUR, change to:
-# source=("_build::git+$url.git")
+source=("_build::git+$url.git")
 sha256sums=("SKIP")
 
 pkgver() {
