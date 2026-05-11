@@ -1,15 +1,17 @@
 # tapstats
 
-Track how many times you press each key and click your mouse. Displays live stats in Waybar and a dashboard TUI.
+Track daily keyboard and mouse activity. Shows live stats in Waybar and a dashboard TUI.
 
-Works on Wayland via `evdev`. Data is stored in SQLite and never deleted.
+Built for Wayland — reads input directly via `evdev`. All data is stored locally in SQLite and never deleted.
+
+---
 
 ## Requirements
 
-- Arch Linux (or any distro with `evdev`)
+- Arch Linux (or any distro with `evdev` support)
 - Python 3.11+
+- User in the `input` group (see [Setup](#setup))
 - Waybar (optional)
-- User must be in the `input` group
 
 ---
 
@@ -21,25 +23,25 @@ Works on Wayland via `evdev`. Data is stored in SQLite and never deleted.
 paru -S tapstats-git
 ```
 
-### Via makepkg (local)
+### Via makepkg
 
 ```bash
-git clone https://github.com/USERNAME/tapstats
+git clone https://github.com/HyperSoWeak/tapstats
 cd tapstats
 makepkg -si
 ```
 
-This builds a proper Arch package and installs binaries to `/usr/bin/` and the systemd service to `/usr/lib/systemd/user/`.
+Installs binaries to `/usr/bin/` and the systemd service to `/usr/lib/systemd/user/`.
 
 ### From source (development)
 
 ```bash
-git clone https://github.com/USERNAME/tapstats
+git clone https://github.com/HyperSoWeak/tapstats
 cd tapstats
 uv pip install -e .
 ```
 
-Scripts are installed to `.venv/bin/`. Use `uv run tapstats` / `uv run tapstats-daemon`.
+Scripts are available via `uv run tapstats`, `uv run tapstats-daemon`, `uv run tapstats-waybar`.
 
 ---
 
@@ -47,31 +49,24 @@ Scripts are installed to `.venv/bin/`. Use `uv run tapstats` / `uv run tapstats-
 
 ### 1. Join the `input` group
 
+Required for the daemon to read from `/dev/input/`.
+
 ```bash
 sudo usermod -aG input $USER
 ```
 
 Log out and back in for this to take effect.
 
-### 2. Start the daemon
-
-**One-off (for testing):**
-
-```bash
-uv run tapstats-daemon
-# or
-.venv/bin/tapstats-daemon
-```
-
-**As a systemd user service (permanent):**
+### 2. Enable the daemon
 
 ```bash
 systemctl --user enable --now tapstats
 ```
 
-Check logs:
+Check status and logs:
 
 ```bash
+systemctl --user status tapstats
 journalctl --user -u tapstats -f
 ```
 
@@ -80,103 +75,116 @@ journalctl --user -u tapstats -f
 ## TUI
 
 ```bash
-uv run tapstats
+tapstats
 ```
 
 ```
 ┏━ TAPSTATS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ 2026-05-11    ⌨  4,521    🖱  234                               ┃
-┠─────────────────────────┰────────────────────────────────────────┨
-┃ KEYBOARD                ┃ TOP KEYS                               ┃
-┃   Total         4,521   ┃ Space       ████████████████████  812  ┃
-┃                         ┃ E           █████████████         601  ┃
-┃ MOUSE                   ┃ Backspace   ██████████            489  ┃
-┃   Left            234   ┃ ...                                    ┃
-┠─────────────────────────┸────────────────────────────────────────┨
+┃ 2026-05-11    󰌌  4,521    󰍽  234                                ┃
+┠──────────────────────────┰───────────────────────────────────────┨
+┃ KEYBOARD                 ┃ TOP KEYS                              ┃
+┃   Total          4,521   ┃ Space       ████████████████████  812 ┃
+┃                          ┃ E           █████████████         601 ┃
+┃ MOUSE                    ┃ Backspace   ██████████            489 ┃
+┃   Left             234   ┃ A           ████████              312 ┃
+┃   Right             45   ┃ T           ███████               287 ┃
+┠──────────────────────────┸───────────────────────────────────────┨
 ┃ 14 DAYS  ▁▂▁▃▅▇▆▄▂▅▇▆▅▄                                        ┃
 ┃ 2026-04-28  ████████████                    2,341               ┃
 ┃ 2026-04-29  ██████████████████              3,891               ┃
 ┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
 ```
 
-Keybindings: `r` refresh, `q` quit.
+| Key | Action  |
+|-----|---------|
+| `r` | Refresh |
+| `q` | Quit    |
 
 ---
 
 ## Waybar
 
-Add to your Waybar config:
+Add to `~/.config/waybar/config.jsonc`:
 
-```json
-"modules-right": ["custom/tapstats"],
+```jsonc
+"modules-right": ["custom/tapstats", ...],
 
 "custom/tapstats": {
     "exec": "tapstats-waybar",
     "return-type": "json",
-    "signal": 8
+    "signal": 8,
+    "tooltip": true,
+    "on-click": "kitty tapstats"
 }
 ```
 
-Optional CSS (`style.css`):
+Add to `~/.config/waybar/style.css`:
 
 ```css
 #custom-tapstats {
-    padding: 0 8px;
+    padding: 0 9px;
+    color: #c5d0e8;
 }
 ```
 
-Restart Waybar:
+Then restart Waybar:
 
 ```bash
 systemctl --user restart waybar
 ```
 
-The module updates every second. Hover for a tooltip with today's top keys and mouse breakdown.
+The module updates every second via signal. Hover to see today's top keys and mouse breakdown.
 
 ---
 
 ## Configuration
 
-Config file location: `~/.config/tapstats/config.toml`
-
-The file is optional — all values have defaults.
+`~/.config/tapstats/config.toml` — all fields are optional, defaults shown below.
 
 ```toml
 [daemon]
-tick_interval = 1      # seconds between Waybar updates
+tick_interval = 1      # seconds between Waybar updates and SQLite flush check
 flush_interval = 30    # seconds between SQLite writes
 
 [waybar]
-signal = 8             # Waybar signal number (RTMIN+N)
-top_keys_count = 5     # keys shown in Waybar tooltip
-display = "keyboard"   # what to show: "keyboard", "mouse", "both"
-compact = true         # true: "1.2k", false: "1,234"
+signal = 8             # Waybar signal number (RTMIN+N), must match config.jsonc
+display = "keyboard"   # "keyboard" | "mouse" | "both"
+compact = true         # true → "󰌌 1.2k"  /  false → "󰌌 1,234"
+top_keys_count = 5     # number of keys shown in the tooltip
 
 [panel]
-history_days = 14      # days shown in TUI history chart
+history_days = 14      # days of history shown in the TUI chart
 
 [db]
 path = "~/.local/share/tapstats/stats.db"
 ```
 
-The full history in SQLite is never pruned regardless of `history_days`.
-
 ---
 
 ## Data
 
-SQLite database at `~/.local/share/tapstats/stats.db`.
+All history is kept in SQLite at `~/.local/share/tapstats/stats.db`. The `history_days` setting only affects what the TUI displays — nothing is ever deleted.
+
+Useful queries:
 
 ```sql
--- Query all-time top keys
+-- All-time top keys
 SELECT key_name, SUM(count) AS total
 FROM daily_keys
 GROUP BY key_name
 ORDER BY total DESC
 LIMIT 20;
 
--- Query a specific day
-SELECT key_name, count FROM daily_keys
+-- Single day breakdown
+SELECT key_name, count
+FROM daily_keys
 WHERE date = '2026-05-11'
 ORDER BY count DESC;
+
+-- Daily totals for the past 30 days
+SELECT date, SUM(count) AS total
+FROM daily_keys
+GROUP BY date
+ORDER BY date DESC
+LIMIT 30;
 ```
