@@ -11,12 +11,15 @@ from textual.binding import Binding
 from textual.containers import Horizontal
 from textual.message import Message
 from textual.reactive import reactive
-from textual.widgets import ContentSwitcher, Footer, Static
+from textual.widgets import ContentSwitcher, Footer, ListItem, ListView, Static
 
+from .config import get_config
 from .db import (
     get_db,
     get_day_stats,
+    get_history,
     get_top_keys,
+    get_week_totals,
 )
 from ._util import fmt_compact as _compact
 
@@ -335,9 +338,101 @@ class KeysView(Static):
             self.view_date = str(d)
 
 
+class HistoryItem(ListItem):
+    def __init__(self, row: dict, color: str, max_val: int) -> None:
+        super().__init__()
+        self._row = row
+        self._color = color
+        self._max_val = max_val
+
+    def compose(self) -> ComposeResult:
+        bar = _bar(self._row["total"], self._max_val, 28)
+        text = (
+            f"[dim]{self._row['date']}[/dim]  "
+            f"[{self._color}]{bar}[/{self._color}]  "
+            f"{self._row['total']:,}"
+        )
+        yield Static(text)
+
+
 class HistoryView(Static):
-    def render(self) -> str:
-        return "[dim]HISTORY — coming in Task 6[/dim]"
+    BINDINGS = [
+        Binding("enter", "drill_down", "Drill down", show=True),
+        Binding("k", "mode_keyboard", "Keyboard", show=False),
+        Binding("m", "mode_mouse",    "Mouse",    show=False),
+        Binding("t", "mode_total",    "Total",    show=False),
+    ]
+
+    history: reactive[list] = reactive([])
+    mode: reactive[str] = reactive("total")
+    this_week: reactive[int] = reactive(0)
+    last_week: reactive[int] = reactive(0)
+
+    def compose(self) -> ComposeResult:
+        yield Static(id="history-spark")
+        yield ListView(id="history-list")
+        yield Static(id="history-footer")
+
+    def watch_history(self, rows: list) -> None:
+        self._rebuild_list(rows)
+        self._update_spark(rows)
+
+    def watch_mode(self, _: str) -> None:
+        self._update_footer()
+
+    def watch_this_week(self, _: int) -> None:
+        self._update_footer()
+
+    def watch_last_week(self, _: int) -> None:
+        self._update_footer()
+
+    def _rebuild_list(self, rows: list) -> None:
+        lv = self.query_one(ListView)
+        lv.clear()
+        displayed = list(reversed(rows))
+        max_val = max((r["total"] for r in displayed), default=1)
+        for i, row in enumerate(displayed):
+            color = BAR_COLORS[i % len(BAR_COLORS)]
+            lv.append(HistoryItem(row, color, max_val))
+
+    def _update_spark(self, rows: list) -> None:
+        max_val = max((r["total"] for r in rows), default=1)
+        spark = "".join(_spark_char(r["total"], max_val) for r in rows)
+        mode_hint = "k: keyboard  m: mouse  t: total"
+        self.query_one("#history-spark", Static).update(
+            f"[bold]{len(rows)} DAYS[/bold]  [green]{spark}[/green]  [dim]{mode_hint}[/dim]"
+        )
+
+    def _update_footer(self) -> None:
+        if self.last_week == 0:
+            delta_str = ""
+        else:
+            delta = (self.this_week - self.last_week) / self.last_week * 100
+            sign = "+" if delta >= 0 else ""
+            delta_str = f"  [dim]{sign}{delta:.1f}% vs last 7d[/dim]"
+        mode_label = {"keyboard": "\U000f030c keys", "mouse": "\U000f037d clicks", "total": "total"}.get(self.mode, "total")
+        self.query_one("#history-footer", Static).update(
+            f"[dim]This 7d[/dim]  [green]{self.this_week:,}[/green]  "
+            f"[dim]Prev 7d[/dim]  [blue]{self.last_week:,}[/blue]{delta_str}  "
+            f"[dim]({mode_label})[/dim]"
+        )
+
+    def action_drill_down(self) -> None:
+        lv = self.query_one(ListView)
+        if lv.highlighted_child and isinstance(lv.highlighted_child, HistoryItem):
+            self.post_message(DrillDown(lv.highlighted_child._row["date"]))
+
+    def action_mode_keyboard(self) -> None:
+        self.mode = "keyboard"
+        self.app.action_refresh()  # type: ignore[attr-defined]
+
+    def action_mode_mouse(self) -> None:
+        self.mode = "mouse"
+        self.app.action_refresh()  # type: ignore[attr-defined]
+
+    def action_mode_total(self) -> None:
+        self.mode = "total"
+        self.app.action_refresh()  # type: ignore[attr-defined]
 
 
 class LifetimeView(Static):
@@ -383,9 +478,34 @@ class TapStatsApp(App):
         width: 30;
         padding-left: 2;
     }
-    HistoryView, LifetimeView {
+    LifetimeView {
         height: 100%;
         padding: 1 2;
+    }
+    HistoryView {
+        height: 100%;
+        padding: 1 2;
+    }
+    #history-spark {
+        height: 1;
+        margin-bottom: 1;
+    }
+    #history-list {
+        height: 1fr;
+        border: none;
+    }
+    #history-footer {
+        height: 1;
+        margin-top: 1;
+        border-top: solid $accent-darken-1;
+        padding-top: 1;
+    }
+    HistoryItem {
+        padding: 0 0;
+        height: 1;
+    }
+    HistoryItem.--highlight {
+        background: $accent-darken-2;
     }
     KeysView {
         height: 100%;
@@ -453,6 +573,13 @@ class TapStatsApp(App):
         current = self.query_one(ContentSwitcher).current
         if current == "keys":
             self.query_one(KeysView)._load_data()
+
+        cfg = get_config()
+        hist_view = self.query_one(HistoryView)
+        hist_view.history = get_history(self.db, cfg.panel.history_days, hist_view.mode)
+        tw, lw = get_week_totals(self.db)
+        hist_view.this_week = tw
+        hist_view.last_week = lw
 
         if today_view.pinned_date:
             stats = get_day_stats(self.db, today_view.pinned_date)
