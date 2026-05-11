@@ -15,7 +15,7 @@ class DaemonConfig:
 class WaybarConfig:
     signal: int = 8
     top_keys_count: int = 5
-    display: str = "keyboard"  # "keyboard", "mouse", "both"
+    display: str = "total"  # "keyboard", "mouse", "both", "total"
     compact: bool = True
 
 
