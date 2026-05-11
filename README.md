@@ -15,6 +15,22 @@ Works on Wayland via `evdev`. Data is stored in SQLite and never deleted.
 
 ## Installation
 
+### Via AUR
+
+```bash
+paru -S tapstats-git
+```
+
+### Via makepkg (local)
+
+```bash
+git clone https://github.com/USERNAME/tapstats
+cd tapstats
+makepkg -si
+```
+
+This builds a proper Arch package and installs binaries to `/usr/bin/` and the systemd service to `/usr/lib/systemd/user/`.
+
 ### From source (development)
 
 ```bash
@@ -23,11 +39,7 @@ cd tapstats
 uv pip install -e .
 ```
 
-### Via AUR (once published)
-
-```bash
-paru -S tapstats-git
-```
+Scripts are installed to `.venv/bin/`. Use `uv run tapstats` / `uv run tapstats-daemon`.
 
 ---
 
