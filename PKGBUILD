@@ -9,23 +9,23 @@ license=("MIT")
 depends=("python" "python-evdev" "python-textual")
 makedepends=("git" "python-build" "python-installer" "python-wheel" "python-hatchling")
 install=tapstats.install
-source=("tapstats::git+file://$startdir")
+source=("_build::git+file://$startdir")
 # Before publishing to AUR, change to:
-# source=("tapstats::git+$url.git")
+# source=("_build::git+$url.git")
 sha256sums=("SKIP")
 
 pkgver() {
-    cd tapstats
+    cd _build
     printf "r%s.%s" "$(git rev-list --count HEAD)" "$(git rev-parse --short HEAD)"
 }
 
 build() {
-    cd tapstats
+    cd _build
     python -m build --wheel --no-isolation
 }
 
 package() {
-    cd tapstats
+    cd _build
     python -m installer --destdir="$pkgdir" dist/*.whl
     install -Dm644 systemd/tapstats.service \
         "$pkgdir/usr/lib/systemd/user/tapstats.service"
