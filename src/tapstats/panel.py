@@ -484,6 +484,7 @@ class HistoryView(Container):
         max_val = max((r["total"] for r in displayed), default=1)
         for row in displayed:
             lv.append(HistoryItem(row, max_val))
+        lv.index = 0 if displayed else None
 
     def _update_analytics(self) -> None:
         delta = _delta_text(self.this_week, self.last_week)
@@ -672,16 +673,16 @@ class TapStatsApp(App):
         Binding("2", "switch_tab('keys')",     "Keys",     show=False),
         Binding("3", "switch_tab('history')",  "History",  show=False),
         Binding("tab", "next_tab",             "Next tab", show=False),
-        Binding("left", "page_left", "Prev day", show=False),
-        Binding("right", "page_right", "Next day", show=False),
-        Binding("a", "page_a", "Scope", show=False),
-        Binding("b", "page_b", "Bars", show=False),
-        Binding("h", "page_h", "Heatmap", show=False),
-        Binding("k", "page_k", "Keyboard", show=False),
-        Binding("m", "page_m", "Mouse", show=False),
-        Binding("t", "page_t", "Total", show=False),
-        Binding("enter", "page_enter", "Detail", show=False),
-        Binding("escape", "page_escape", "Back", show=False),
+        Binding("left", "page_left", "Prev day", show=False, priority=True),
+        Binding("right", "page_right", "Next day", show=False, priority=True),
+        Binding("a", "page_a", "Scope", show=False, priority=True),
+        Binding("b", "page_b", "Bars", show=False, priority=True),
+        Binding("h", "page_h", "Heatmap", show=False, priority=True),
+        Binding("k", "page_k", "Keyboard", show=False, priority=True),
+        Binding("m", "page_m", "Mouse", show=False, priority=True),
+        Binding("t", "page_t", "Total", show=False, priority=True),
+        Binding("enter", "page_enter", "Detail", show=False, priority=True),
+        Binding("escape", "page_escape", "Back", show=False, priority=True),
         Binding("q", "quit",                   "Quit"),
         Binding("r", "refresh",                "Refresh"),
     ]
