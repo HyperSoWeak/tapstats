@@ -10,7 +10,7 @@ Redesign the Textual panel from the current 4-tab layout into a 3-tab analytics 
 - `KEYS`: keyboard-focused heatmap and ranking analysis.
 - `HISTORY`: trend-focused time analysis with daily drill-down.
 
-The redesign changes the information architecture and panel layout only. It does not change the database schema, daemon runtime JSON format, or Waybar behavior. New database work is limited to read-only helper queries.
+The redesign changes the information architecture and panel layout. It does not change the database schema or daemon runtime JSON format. New database work is limited to read-only helper queries. Waybar scope is limited to replacing the `display = "total"` icon with one dedicated total icon.
 
 ## Goals
 
@@ -24,7 +24,8 @@ The redesign changes the information architecture and panel layout only. It does
 
 - No GUI app.
 - No schema migration.
-- No daemon or Waybar redesign.
+- No daemon redesign.
+- No broad Waybar redesign; only `display = "total"` icon output changes.
 - No new persistence or cache layer.
 - No unrelated refactor outside the panel and query helpers needed by the panel.
 
@@ -237,6 +238,18 @@ The helper returns best day, low day, active days, total, and daily average for 
 - Use icons only where already established and readable in Nerd Font environments.
 - Avoid dense help text inside each view; use footer bindings for discoverability.
 
+## Waybar Icon
+
+When `[waybar].display = "total"`, the Waybar text should use one dedicated total icon followed by the total action count.
+
+It must not render the current combined keyboard and mouse icon prefix:
+
+```text
+󰌌 󰍽 1.2k
+```
+
+The exact glyph is chosen during implementation after checking Nerd Font rendering, then kept as a named constant in `src/tapstats/waybar.py`.
+
 ## Responsiveness
 
 The panel should be usable in common terminal sizes:
@@ -275,5 +288,6 @@ Documentation:
 - `KEYS` defaults to today heatmap and supports heatmap/bars plus day/all-time scope.
 - `HISTORY` shows trend analytics, mode filters, daily list, and in-tab day detail drill-down.
 - Scroll remains excluded from total actions everywhere.
-- Existing daemon JSON and Waybar behavior continue unchanged.
+- Existing daemon JSON behavior continues unchanged.
+- `display = "total"` uses one dedicated total icon, not the combined keyboard and mouse icons.
 - Tests pass.
