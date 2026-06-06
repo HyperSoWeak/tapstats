@@ -3,7 +3,7 @@ import pytest
 from datetime import date as date_type
 from unittest.mock import MagicMock
 
-from tapstats.waybar import _format_output, _fmt
+from tapstats.waybar import TOTAL_ICON, _format_output, _fmt
 
 
 def _cfg(display="total", compact=True, top_keys_count=3):
@@ -26,9 +26,10 @@ def _data(kb=1000, clicks=200, scroll_up=500, lifetime_total=50000, top=None):
     }
 
 
-def test_total_mode_text():
+def test_total_mode_text_uses_dedicated_icon():
     result = json.loads(_format_output(_data(kb=1000, clicks=200), _cfg(display="total")))
-    assert "1.2k" in result["text"]  # 1000+200=1200
+    assert result["text"] == f"{TOTAL_ICON} 1.2k"  # 1000+200=1200
+    assert "󰌌 󰍽" not in result["text"]
 
 
 def test_keyboard_mode_text():
