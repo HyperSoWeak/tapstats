@@ -445,6 +445,7 @@ class HistoryItem(ListItem):
 class HistoryView(Static):
     BINDINGS = [
         Binding("enter", "drill_down", "Drill down", show=True),
+        Binding("escape", "exit_detail", "Back", show=False),
         Binding("k", "mode_keyboard", "Keyboard", show=False),
         Binding("m", "mode_mouse",    "Mouse",    show=False),
         Binding("t", "mode_total",    "Total",    show=False),
@@ -454,24 +455,60 @@ class HistoryView(Static):
     mode: reactive[str] = reactive("total")
     this_week: reactive[int] = reactive(0)
     last_week: reactive[int] = reactive(0)
+    trend_7d: reactive[list] = reactive([])
+    trend_30d: reactive[list] = reactive([])
+    summary: reactive[dict] = reactive({})
+    detail_date: reactive[str | None] = reactive(None)
+    detail_stats: reactive[dict] = reactive({})
 
     def compose(self) -> ComposeResult:
-        yield Static(id="history-spark")
+        yield Static(id="history-trend")
+        yield Static(id="history-records")
         yield ListView(id="history-list")
+        yield Static(id="history-detail")
         yield Static(id="history-footer")
+
+    def on_mount(self) -> None:
+        self.query_one("#history-detail", Static).display = False
+        self._update_analytics()
 
     def watch_history(self, rows: list) -> None:
         self._rebuild_list(rows)
-        self._update_spark(rows)
 
     def watch_mode(self, _: str) -> None:
+        if self.is_mounted:
+            self._update_analytics()
         self._update_footer()
 
     def watch_this_week(self, _: int) -> None:
-        self._update_footer()
+        if self.is_mounted:
+            self._update_analytics()
+            self._update_footer()
 
     def watch_last_week(self, _: int) -> None:
-        self._update_footer()
+        if self.is_mounted:
+            self._update_analytics()
+            self._update_footer()
+
+    def watch_trend_7d(self, _: list) -> None:
+        if self.is_mounted:
+            self._update_analytics()
+
+    def watch_trend_30d(self, _: list) -> None:
+        if self.is_mounted:
+            self._update_analytics()
+
+    def watch_summary(self, _: dict) -> None:
+        if self.is_mounted:
+            self._update_analytics()
+
+    def watch_detail_date(self, _: str | None) -> None:
+        if self.is_mounted:
+            self._update_detail()
+
+    def watch_detail_stats(self, _: dict) -> None:
+        if self.is_mounted:
+            self._update_detail()
 
     def _rebuild_list(self, rows: list) -> None:
         lv = self.query_one(ListView)
@@ -482,32 +519,69 @@ class HistoryView(Static):
             color = BAR_COLORS[i % len(BAR_COLORS)]
             lv.append(HistoryItem(row, color, max_val))
 
-    def _update_spark(self, rows: list) -> None:
-        max_val = max((r["total"] for r in rows), default=1)
-        spark = "".join(_spark_char(r["total"], max_val) for r in rows)
-        mode_hint = "k: keyboard  m: mouse  t: total"
-        self.query_one("#history-spark", Static).update(
-            f"[bold]{len(rows)} DAYS[/bold]  [green]{spark}[/green]  [dim]{mode_hint}[/dim]"
+    def _update_analytics(self) -> None:
+        delta = _delta_text(self.this_week, self.last_week)
+        delta_part = f"  [dim]{delta}[/dim]" if delta else ""
+        self.query_one("#history-trend", Static).update(
+            f"[bold]TREND[/bold]  [dim]{self.mode}[/dim]\n"
+            f"7d  [green]{_trend_text(self.trend_7d)}[/green]  {self.this_week:,}{delta_part}\n"
+            f"30d [blue]{_trend_text(self.trend_30d)}[/blue]  "
+            f"[dim]avg/day[/dim] {self.summary.get('daily_avg', 0):,}"
+        )
+        self.query_one("#history-records", Static).update(
+            f"[bold]RECORDS[/bold]\n"
+            f"[dim]best day[/dim]   {self.summary.get('best_total', 0):,}  "
+            f"[dim]{self.summary.get('best_date', '')}[/dim]\n"
+            f"[dim]low day [/dim]   {self.summary.get('low_total', 0):,}  "
+            f"[dim]{self.summary.get('low_date', '')}[/dim]\n"
+            f"[dim]active[/dim]     {self.summary.get('active_days', 0)}/{self.summary.get('window_days', 0)}"
         )
 
     def _update_footer(self) -> None:
-        if self.last_week == 0:
-            delta_str = ""
-        else:
-            delta = (self.this_week - self.last_week) / self.last_week * 100
-            sign = "+" if delta >= 0 else ""
-            delta_str = f"  [dim]{sign}{delta:.1f}% vs last 7d[/dim]"
         mode_label = {"keyboard": "\U000f030c keys", "mouse": "\U000f037d clicks", "total": "total"}.get(self.mode, "total")
         self.query_one("#history-footer", Static).update(
-            f"[dim]This 7d[/dim]  [green]{self.this_week:,}[/green]  "
-            f"[dim]Prev 7d[/dim]  [blue]{self.last_week:,}[/blue]{delta_str}  "
-            f"[dim]({mode_label})[/dim]"
+            f"[dim]Enter detail  Esc back  k/m/t filter  ({mode_label})[/dim]"
         )
+
+    def _update_detail(self) -> None:
+        detail = self.query_one("#history-detail", Static)
+        if self.detail_date is None:
+            detail.display = False
+            return
+        detail.display = True
+        mouse = self.detail_stats.get("mouse", {})
+        clicks = _click_total(mouse)
+        scroll = _scroll_total(mouse)
+        keyboard_total = self.detail_stats.get("keyboard_total", 0)
+        total = keyboard_total + clicks
+        lines = [
+            f"[bold]DETAIL {self.detail_date}[/bold]",
+            f"[green]{total:,} total[/green]  [dim]keys {keyboard_total:,}  clicks {clicks:,}  scroll ±{scroll:,}[/dim]",
+            "",
+            "[bold]TOP KEYS[/bold]",
+        ]
+        top_keys = self.detail_stats.get("top_keys", [])
+        max_count = top_keys[0][1] if top_keys else 0
+        for i, (name, count) in enumerate(top_keys[:5]):
+            color = BAR_COLORS[i % len(BAR_COLORS)]
+            label = name.replace("KEY_", "")[:10]
+            lines.append(f"[dim]{label:<10}[/dim] [{color}]{_bar(count, max_count, 12)}[/{color}] {count:,}")
+        lines.extend([
+            "",
+            "[bold]MOUSE[/bold]",
+            f"[dim]left[/dim] {mouse.get('left', 0):,}  [dim]right[/dim] {mouse.get('right', 0):,}  [dim]middle[/dim] {mouse.get('middle', 0):,}",
+        ])
+        detail.update("\n".join(lines))
 
     def action_drill_down(self) -> None:
         lv = self.query_one(ListView)
         if lv.highlighted_child and isinstance(lv.highlighted_child, HistoryItem):
-            self.post_message(DrillDown(lv.highlighted_child._row["date"]))
+            self.detail_date = lv.highlighted_child._row["date"]
+            self.detail_stats = get_day_stats(self.app.db, self.detail_date)  # type: ignore[attr-defined]
+
+    def action_exit_detail(self) -> None:
+        self.detail_date = None
+        self.detail_stats = {}
 
     def action_mode_keyboard(self) -> None:
         self.mode = "keyboard"
@@ -624,13 +698,23 @@ class TapStatsApp(App):
         height: 100%;
         padding: 1 2;
     }
-    #history-spark {
-        height: 1;
+    #history-trend {
+        height: 3;
+        margin-bottom: 1;
+    }
+    #history-records {
+        height: 4;
         margin-bottom: 1;
     }
     #history-list {
         height: 1fr;
         border: none;
+    }
+    #history-detail {
+        height: 10;
+        border-top: solid $accent-darken-1;
+        margin-top: 1;
+        padding-top: 1;
     }
     #history-footer {
         height: 1;
@@ -713,9 +797,10 @@ class TapStatsApp(App):
         cfg = get_config()
         hist_view = self.query_one(HistoryView)
         hist_view.history = get_history(self.db, cfg.panel.history_days, hist_view.mode)
-        tw, lw = get_period_totals(self.db, 7, hist_view.mode)
-        hist_view.this_week = tw
-        hist_view.last_week = lw
+        hist_view.trend_7d = get_history(self.db, 7, hist_view.mode)
+        hist_view.trend_30d = get_history(self.db, 30, hist_view.mode)
+        hist_view.this_week, hist_view.last_week = get_period_totals(self.db, 7, hist_view.mode)
+        hist_view.summary = get_history_summary(self.db, 30, hist_view.mode)
         overview_view.trend_rows = get_history(self.db, 7, "total")
         overview_view.this_period, overview_view.previous_period = get_period_totals(self.db, 7, "total")
         overview_lifetime = get_lifetime_stats(self.db)
