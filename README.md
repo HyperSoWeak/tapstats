@@ -1,6 +1,6 @@
 # tapstats
 
-Track daily keyboard and mouse activity. Shows live stats in Waybar and a 4-tab TUI dashboard.
+Track daily keyboard and mouse activity. Shows live stats in Waybar and a 3-tab analytics TUI.
 
 Built for Wayland — reads input directly via `evdev`. All data is stored locally in SQLite and never deleted.
 
@@ -70,16 +70,15 @@ journalctl --user -u tapstats -f
 tapstats
 ```
 
-Four tabs, navigate with `1`–`4` or `Tab`:
+Three tabs, navigate with `1`–`3` or `Tab`:
 
 | Tab | Content |
 |-----|---------|
-| **TODAY** | Total actions (keys + clicks), keyboard top-5 bar chart, mouse breakdown with scroll lines |
-| **KEYS** | Full QWERTY heatmap colored by press frequency; press `b` for ranked bar chart, `h` for heatmap; `←`/`→` to navigate days |
-| **HISTORY** | Per-day sparkline + bar list; `↑`/`↓` to move cursor, `Enter` to drill into a day, `Esc` to return; `k`/`m`/`t` to filter by keyboard / mouse / total |
-| **LIFETIME** | All-time cumulative total, all-time top keys, daily average, record day |
+| **OVERVIEW** | Today total, keyboard/click/scroll summary, top keys, 7-day trend, lifetime summary |
+| **KEYS** | QWERTY heatmap or ranked bars; `←`/`→` navigate days; `a` toggles day/all-time; `b` bars; `h` heatmap |
+| **HISTORY** | 7-day and 30-day trends, records, daily list, in-tab day detail; `k`/`m`/`t` filter keyboard / mouse / total |
 
-Other keys: `r` refresh, `q` quit.
+Other keys: `Enter` drill into a selected history day, `Esc` return from detail, `r` refresh, `q` quit.
 
 ## Waybar
 
@@ -104,6 +103,8 @@ systemctl --user restart waybar
 ```
 
 The module updates every 5 seconds via signal. Hover to see today's top keys, mouse breakdown, and all-time total.
+
+When `display = "total"`, the module uses a single total icon instead of combining the keyboard and mouse icons.
 
 ## Configuration
 
