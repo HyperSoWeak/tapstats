@@ -9,19 +9,19 @@ from rich.text import Text
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal
-from textual.message import Message
 from textual.reactive import reactive
 from textual.widgets import ContentSwitcher, Footer, ListItem, ListView, Static
 
 from .config import get_config
 from .db import (
-    get_all_time_top_keys,
+    get_all_time_keys,
     get_db,
     get_day_stats,
     get_history,
+    get_history_summary,
     get_lifetime_stats,
+    get_period_totals,
     get_top_keys,
-    get_week_totals,
 )
 from ._util import fmt_compact as _compact
 
@@ -121,28 +121,15 @@ def _trend_text(rows: list[dict]) -> str:
     return "".join(_spark_char(r["total"], max_val) for r in rows)
 
 
-# ── messages ─────────────────────────────────────────────────────────────────
-
-class DrillDown(Message):
-    def __init__(self, date: str) -> None:
-        self.date = date
-        super().__init__()
-
-
-class DrillDownExit(Message):
-    pass
-
-
 # ── tab bar ──────────────────────────────────────────────────────────────────
 
 class TabBar(Static):
-    active: reactive[str] = reactive("today")
+    active: reactive[str] = reactive("overview")
 
     _TABS = [
-        ("today",    "1 TODAY"),
+        ("overview", "1 OVERVIEW"),
         ("keys",     "2 KEYS"),
         ("history",  "3 HISTORY"),
-        ("lifetime", "4 LIFETIME"),
     ]
 
     def render(self) -> str:
@@ -155,7 +142,7 @@ class TabBar(Static):
         return "  ".join(parts)
 
 
-# ── today tab ────────────────────────────────────────────────────────────────
+# ── overview tab ─────────────────────────────────────────────────────────────
 
 class TodayHeader(Static):
     keyboard_total: reactive[int] = reactive(0)
@@ -207,13 +194,10 @@ class TodayMouse(Static):
         )
 
 
-class TodayView(Static):
-    BINDINGS = [Binding("escape", "exit_pin", "Back", show=False)]
-
+class OverviewView(Static):
     keyboard_total: reactive[int] = reactive(0)
     top_keys: reactive[list] = reactive([])
     mouse: reactive[dict] = reactive({})
-    pinned_date: reactive[str | None] = reactive(None)
 
     def compose(self) -> ComposeResult:
         yield TodayHeader(id="today-header")
@@ -229,22 +213,11 @@ class TodayView(Static):
         self.query_one(TodayKeyboard).top_keys = v
 
     def watch_mouse(self, v: dict) -> None:
-        clicks = v.get("left", 0) + v.get("right", 0) + v.get("middle", 0)
         h = self.query_one(TodayHeader)
-        h.clicks = clicks
-        h.date = self.pinned_date or str(date_type.today())
-        h.pinned = self.pinned_date is not None
+        h.clicks = _click_total(v)
+        h.date = str(date_type.today())
+        h.pinned = False
         self.query_one(TodayMouse).mouse = v
-
-    def watch_pinned_date(self, v: str | None) -> None:
-        h = self.query_one(TodayHeader)
-        h.date = v or str(date_type.today())
-        h.pinned = v is not None
-
-    def action_exit_pin(self) -> None:
-        if self.pinned_date is not None:
-            self.pinned_date = None
-            self.post_message(DrillDownExit())
 
 
 # ── keys tab ─────────────────────────────────────────────────────────────────
@@ -532,7 +505,7 @@ class TapStatsApp(App):
     ContentSwitcher {
         height: 1fr;
     }
-    TodayView {
+    OverviewView {
         height: 100%;
         padding: 1 2;
     }
@@ -550,28 +523,6 @@ class TapStatsApp(App):
         border-right: solid $accent-darken-1;
     }
     TodayMouse {
-        width: 30;
-        padding-left: 2;
-    }
-    LifetimeView {
-        height: 100%;
-        padding: 1 2;
-    }
-    #lifetime-header {
-        height: 5;
-        border-bottom: solid $accent-darken-1;
-        margin-bottom: 1;
-    }
-    #lifetime-cols {
-        height: 1fr;
-    }
-    #lifetime-bars {
-        width: 1fr;
-        padding-right: 2;
-        border-right: solid $accent-darken-1;
-        overflow-y: auto;
-    }
-    #lifetime-stats {
         width: 30;
         padding-left: 2;
     }
@@ -621,24 +572,22 @@ class TapStatsApp(App):
     }
     """
     BINDINGS = [
-        Binding("1", "switch_tab('today')",    "Today",    show=False),
+        Binding("1", "switch_tab('overview')", "Overview", show=False),
         Binding("2", "switch_tab('keys')",     "Keys",     show=False),
         Binding("3", "switch_tab('history')",  "History",  show=False),
-        Binding("4", "switch_tab('lifetime')", "Lifetime", show=False),
         Binding("tab", "next_tab",             "Next tab", show=False),
         Binding("q", "quit",                   "Quit"),
         Binding("r", "refresh",                "Refresh"),
     ]
 
-    _TAB_ORDER = ["today", "keys", "history", "lifetime"]
+    _TAB_ORDER = ["overview", "keys", "history"]
 
     def compose(self) -> ComposeResult:
         yield TabBar()
-        with ContentSwitcher(initial="today"):
-            yield TodayView(id="today")
+        with ContentSwitcher(initial="overview"):
+            yield OverviewView(id="overview")
             yield KeysView(id="keys")
             yield HistoryView(id="history")
-            yield LifetimeView(id="lifetime")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -660,7 +609,7 @@ class TapStatsApp(App):
 
     def action_refresh(self) -> None:
         today = str(date_type.today())
-        today_view = self.query_one(TodayView)
+        overview_view = self.query_one(OverviewView)
 
         # Refresh KEYS if active
         current = self.query_one(ContentSwitcher).current
@@ -670,60 +619,26 @@ class TapStatsApp(App):
         cfg = get_config()
         hist_view = self.query_one(HistoryView)
         hist_view.history = get_history(self.db, cfg.panel.history_days, hist_view.mode)
-        tw, lw = get_week_totals(self.db)
+        tw, lw = get_period_totals(self.db, 7, hist_view.mode)
         hist_view.this_week = tw
         hist_view.last_week = lw
-
-        lifetime_view = self.query_one(LifetimeView)
-        if current == "lifetime":
-            lt_stats = get_lifetime_stats(self.db)
-            # Merge live today data from runtime JSON if available
-            if RUNTIME_JSON.exists():
-                try:
-                    rt = json.loads(RUNTIME_JSON.read_text())
-                    td = rt.get("today", {})
-                    if td.get("date") == today:
-                        lt = rt.get("lifetime", {})
-                        lt_stats["keyboard"] = lt.get("keyboard", lt_stats["keyboard"])
-                        lt_stats["mouse"] = lt.get("mouse", lt_stats["mouse"])
-                        lt_stats["total"] = lt.get("total", lt_stats["total"])
-                except Exception:
-                    pass
-            lifetime_view.stats = lt_stats
-            lifetime_view.top_keys = get_all_time_top_keys(self.db, limit=20)
-
-        if today_view.pinned_date:
-            stats = get_day_stats(self.db, today_view.pinned_date)
-            today_view.keyboard_total = stats["keyboard_total"]
-            today_view.top_keys = stats["top_keys"]
-            today_view.mouse = stats["mouse"]
-            return
 
         if RUNTIME_JSON.exists():
             try:
                 data = json.loads(RUNTIME_JSON.read_text())
                 td = data.get("today", {})
                 if td.get("date") == today:
-                    today_view.keyboard_total = td["keyboard"]["total"]
-                    today_view.top_keys = [(n, c) for n, c in td["keyboard"]["top"]]
-                    today_view.mouse = td["mouse"]
+                    overview_view.keyboard_total = td["keyboard"]["total"]
+                    overview_view.top_keys = [(n, c) for n, c in td["keyboard"]["top"]]
+                    overview_view.mouse = td["mouse"]
                     return
             except Exception:
                 pass
 
         stats = get_day_stats(self.db, today)
-        today_view.keyboard_total = stats["keyboard_total"]
-        today_view.top_keys = stats["top_keys"]
-        today_view.mouse = stats["mouse"]
-
-    def on_drill_down(self, message: DrillDown) -> None:
-        today_view = self.query_one(TodayView)
-        today_view.pinned_date = message.date
-        self._switch_tab("today")
-        self.action_refresh()
-
-    def on_drill_down_exit(self, _: DrillDownExit) -> None:
-        self._switch_tab("history")
+        overview_view.keyboard_total = stats["keyboard_total"]
+        overview_view.top_keys = stats["top_keys"]
+        overview_view.mouse = stats["mouse"]
 
 
 def main() -> None:
