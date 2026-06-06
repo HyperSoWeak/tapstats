@@ -198,26 +198,99 @@ class OverviewView(Static):
     keyboard_total: reactive[int] = reactive(0)
     top_keys: reactive[list] = reactive([])
     mouse: reactive[dict] = reactive({})
+    trend_rows: reactive[list] = reactive([])
+    this_period: reactive[int] = reactive(0)
+    previous_period: reactive[int] = reactive(0)
+    lifetime: reactive[dict] = reactive({})
 
     def compose(self) -> ComposeResult:
-        yield TodayHeader(id="today-header")
-        with Horizontal(id="today-cols"):
-            yield TodayKeyboard(id="today-kb")
-            yield TodayMouse(id="today-mouse")
+        yield Static(id="overview-today")
+        with Horizontal(id="overview-row-a"):
+            yield Static(id="overview-top-keys")
+            yield Static(id="overview-trend")
+        with Horizontal(id="overview-row-b"):
+            yield Static(id="overview-mouse")
+            yield Static(id="overview-lifetime")
 
-    def watch_keyboard_total(self, v: int) -> None:
-        self.query_one(TodayHeader).keyboard_total = v
-        self.query_one(TodayKeyboard).keyboard_total = v
+    def on_mount(self) -> None:
+        self._render()
 
-    def watch_top_keys(self, v: list) -> None:
-        self.query_one(TodayKeyboard).top_keys = v
+    def watch_keyboard_total(self, _: int) -> None:
+        if self.is_mounted:
+            self._render()
 
-    def watch_mouse(self, v: dict) -> None:
-        h = self.query_one(TodayHeader)
-        h.clicks = _click_total(v)
-        h.date = str(date_type.today())
-        h.pinned = False
-        self.query_one(TodayMouse).mouse = v
+    def watch_top_keys(self, _: list) -> None:
+        if self.is_mounted:
+            self._render()
+
+    def watch_mouse(self, _: dict) -> None:
+        if self.is_mounted:
+            self._render()
+
+    def watch_trend_rows(self, _: list) -> None:
+        if self.is_mounted:
+            self._render()
+
+    def watch_this_period(self, _: int) -> None:
+        if self.is_mounted:
+            self._render()
+
+    def watch_previous_period(self, _: int) -> None:
+        if self.is_mounted:
+            self._render()
+
+    def watch_lifetime(self, _: dict) -> None:
+        if self.is_mounted:
+            self._render()
+
+    def _render(self) -> None:
+        clicks = _click_total(self.mouse)
+        scroll = _scroll_total(self.mouse)
+        total = self.keyboard_total + clicks
+        delta = _delta_text(self.this_period, self.previous_period)
+        delta_part = f"  [dim]{delta}[/dim]" if delta else ""
+        lifetime_total = self.lifetime.get("total", 0)
+        lifetime_days = self.lifetime.get("active_days", 0)
+        lifetime_avg = lifetime_total // lifetime_days if lifetime_days else 0
+
+        self.query_one("#overview-today", Static).update(
+            f"[bold]TODAY[/bold]  [dim]{date_type.today()}[/dim]\n"
+            f"[bold green]{total:,} actions[/bold green]\n"
+            f"[dim]keys {self.keyboard_total:,}  clicks {clicks:,}  scroll ±{scroll:,}[/dim]"
+        )
+
+        top_lines = ["[bold]TOP KEYS TODAY[/bold]"]
+        if self.top_keys:
+            max_count = self.top_keys[0][1]
+            for i, (name, count) in enumerate(self.top_keys[:5]):
+                color = BAR_COLORS[i % len(BAR_COLORS)]
+                label = name.replace("KEY_", "")[:10]
+                top_lines.append(f"[dim]{label:<10}[/dim] [{color}]{_bar(count, max_count, 12)}[/{color}] {count:,}")
+        else:
+            top_lines.append("[dim]No data[/dim]")
+        self.query_one("#overview-top-keys", Static).update("\n".join(top_lines))
+
+        self.query_one("#overview-trend", Static).update(
+            f"[bold]7-DAY TREND[/bold]\n"
+            f"[green]{_trend_text(self.trend_rows)}[/green]\n"
+            f"[dim]this 7d[/dim] {self.this_period:,}{delta_part}"
+        )
+
+        self.query_one("#overview-mouse", Static).update(
+            f"[bold]MOUSE TODAY[/bold]\n"
+            f"[dim]left[/dim] {self.mouse.get('left', 0):,}  "
+            f"[dim]right[/dim] {self.mouse.get('right', 0):,}\n"
+            f"[dim]middle[/dim] {self.mouse.get('middle', 0):,}  "
+            f"[dim]scroll[/dim] ±{scroll:,}"
+        )
+
+        self.query_one("#overview-lifetime", Static).update(
+            f"[bold]LIFETIME[/bold]\n"
+            f"[#ff9e64]{lifetime_total:,} actions[/#ff9e64]\n"
+            f"[dim]avg/day[/dim] {lifetime_avg:,}\n"
+            f"[dim]record[/dim] {self.lifetime.get('record_total', 0):,}  "
+            f"[dim]{self.lifetime.get('record_date', '')}[/dim]"
+        )
 
 
 # ── keys tab ─────────────────────────────────────────────────────────────────
@@ -509,21 +582,24 @@ class TapStatsApp(App):
         height: 100%;
         padding: 1 2;
     }
-    TodayHeader {
+    #overview-today {
         height: 5;
         border-bottom: solid $accent-darken-1;
         margin-bottom: 1;
     }
-    #today-cols {
+    #overview-row-a, #overview-row-b {
         height: 1fr;
     }
-    TodayKeyboard {
+    #overview-row-a {
+        margin-bottom: 1;
+    }
+    #overview-top-keys, #overview-mouse {
         width: 1fr;
         padding-right: 2;
         border-right: solid $accent-darken-1;
     }
-    TodayMouse {
-        width: 30;
+    #overview-trend, #overview-lifetime {
+        width: 34;
         padding-left: 2;
     }
     HistoryView {
@@ -622,12 +698,20 @@ class TapStatsApp(App):
         tw, lw = get_period_totals(self.db, 7, hist_view.mode)
         hist_view.this_week = tw
         hist_view.last_week = lw
+        overview_view.trend_rows = get_history(self.db, 7, "total")
+        overview_view.this_period, overview_view.previous_period = get_period_totals(self.db, 7, "total")
+        overview_lifetime = get_lifetime_stats(self.db)
 
         if RUNTIME_JSON.exists():
             try:
                 data = json.loads(RUNTIME_JSON.read_text())
                 td = data.get("today", {})
                 if td.get("date") == today:
+                    lt = data.get("lifetime", {})
+                    overview_lifetime["keyboard"] = lt.get("keyboard", overview_lifetime["keyboard"])
+                    overview_lifetime["mouse"] = lt.get("mouse", overview_lifetime["mouse"])
+                    overview_lifetime["total"] = lt.get("total", overview_lifetime["total"])
+                    overview_view.lifetime = overview_lifetime
                     overview_view.keyboard_total = td["keyboard"]["total"]
                     overview_view.top_keys = [(n, c) for n, c in td["keyboard"]["top"]]
                     overview_view.mouse = td["mouse"]
@@ -635,6 +719,7 @@ class TapStatsApp(App):
             except Exception:
                 pass
 
+        overview_view.lifetime = overview_lifetime
         stats = get_day_stats(self.db, today)
         overview_view.keyboard_total = stats["keyboard_total"]
         overview_view.top_keys = stats["top_keys"]
