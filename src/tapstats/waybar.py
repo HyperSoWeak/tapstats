@@ -8,6 +8,7 @@ from ._util import fmt_compact as _fmt
 
 RUNTIME_JSON = Path(f"/run/user/{os.getuid()}/tapstats.json")
 _FALLBACK = json.dumps({"text": "󰌌 —", "tooltip": "tapstats not running"})
+TOTAL_ICON = "Σ"
 
 
 def _format_output(data: dict, cfg) -> str | None:
@@ -24,7 +25,7 @@ def _format_output(data: dict, cfg) -> str | None:
 
     match cfg.waybar.display:
         case "total":
-            text = f"󰌌 󰍽 {fmt(kb + clicks)}"
+            text = f"{TOTAL_ICON} {fmt(kb + clicks)}"
         case "both":
             text = f"󰌌 {fmt(kb)}  󰍽 {fmt(clicks)}"
         case "mouse":
