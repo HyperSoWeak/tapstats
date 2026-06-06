@@ -672,6 +672,16 @@ class TapStatsApp(App):
         Binding("2", "switch_tab('keys')",     "Keys",     show=False),
         Binding("3", "switch_tab('history')",  "History",  show=False),
         Binding("tab", "next_tab",             "Next tab", show=False),
+        Binding("left", "page_left", "Prev day", show=False),
+        Binding("right", "page_right", "Next day", show=False),
+        Binding("a", "page_a", "Scope", show=False),
+        Binding("b", "page_b", "Bars", show=False),
+        Binding("h", "page_h", "Heatmap", show=False),
+        Binding("k", "page_k", "Keyboard", show=False),
+        Binding("m", "page_m", "Mouse", show=False),
+        Binding("t", "page_t", "Total", show=False),
+        Binding("enter", "page_enter", "Detail", show=False),
+        Binding("escape", "page_escape", "Back", show=False),
         Binding("q", "quit",                   "Quit"),
         Binding("r", "refresh",                "Refresh"),
     ]
@@ -702,6 +712,49 @@ class TapStatsApp(App):
         current = self.query_one(ContentSwitcher).current
         idx = self._TAB_ORDER.index(current) if current in self._TAB_ORDER else 0
         self._switch_tab(self._TAB_ORDER[(idx + 1) % len(self._TAB_ORDER)])
+
+    def _current_tab(self) -> str:
+        return self.query_one(ContentSwitcher).current or "overview"
+
+    def action_page_left(self) -> None:
+        if self._current_tab() == "keys":
+            self.query_one(KeysView).action_prev_day()
+
+    def action_page_right(self) -> None:
+        if self._current_tab() == "keys":
+            self.query_one(KeysView).action_next_day()
+
+    def action_page_a(self) -> None:
+        if self._current_tab() == "keys":
+            self.query_one(KeysView).action_toggle_scope()
+
+    def action_page_b(self) -> None:
+        if self._current_tab() == "keys":
+            self.query_one(KeysView).action_mode_bars()
+
+    def action_page_h(self) -> None:
+        if self._current_tab() == "keys":
+            self.query_one(KeysView).action_mode_heatmap()
+
+    def action_page_k(self) -> None:
+        if self._current_tab() == "history":
+            self.query_one(HistoryView).action_mode_keyboard()
+
+    def action_page_m(self) -> None:
+        if self._current_tab() == "history":
+            self.query_one(HistoryView).action_mode_mouse()
+
+    def action_page_t(self) -> None:
+        if self._current_tab() == "history":
+            self.query_one(HistoryView).action_mode_total()
+
+    def action_page_enter(self) -> None:
+        if self._current_tab() == "history":
+            self.query_one(HistoryView).action_drill_down()
+
+    def action_page_escape(self) -> None:
+        if self._current_tab() == "history":
+            self.query_one(HistoryView).action_exit_detail()
 
     def action_refresh(self) -> None:
         today = str(date_type.today())
