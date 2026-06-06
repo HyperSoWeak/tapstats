@@ -166,6 +166,83 @@ def get_all_time_top_keys(conn: sqlite3.Connection, limit: int = 20) -> list[tup
     return [(r["key_name"], r["total"]) for r in rows]
 
 
+def get_all_time_keys(conn: sqlite3.Connection) -> list[dict]:
+    rows = conn.execute(
+        """
+        SELECT key_name, SUM(count) AS count FROM daily_keys
+        GROUP BY key_name ORDER BY count DESC, key_name ASC
+        """
+    ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def _daily_totals_sql(mode: str) -> str:
+    if mode == "keyboard":
+        return """
+            SELECT date, SUM(count) AS total FROM daily_keys
+            GROUP BY date
+        """
+    if mode == "mouse":
+        return """
+            SELECT date, SUM(count) AS total FROM daily_mouse
+            WHERE button NOT IN ('scroll_up', 'scroll_down')
+            GROUP BY date
+        """
+    return """
+        WITH combined AS (
+            SELECT date, count FROM daily_keys
+            UNION ALL
+            SELECT date, count FROM daily_mouse
+            WHERE button NOT IN ('scroll_up', 'scroll_down')
+        )
+        SELECT date, SUM(count) AS total FROM combined GROUP BY date
+    """
+
+
+def get_period_totals(conn: sqlite3.Connection, days: int, mode: str = "total") -> tuple[int, int]:
+    sql = f"""
+        WITH daily AS ({_daily_totals_sql(mode)})
+        SELECT
+            COALESCE(SUM(CASE WHEN date >= date('now', 'localtime', ?) THEN total ELSE 0 END), 0),
+            COALESCE(SUM(CASE WHEN date >= date('now', 'localtime', ?) AND date < date('now', 'localtime', ?) THEN total ELSE 0 END), 0)
+        FROM daily
+    """
+    current_start = f"-{days - 1} days"
+    previous_start = f"-{days * 2 - 1} days"
+    row = conn.execute(sql, (current_start, previous_start, current_start)).fetchone()
+    return (row[0], row[1])
+
+
+def get_history_summary(conn: sqlite3.Connection, days: int, mode: str = "total") -> dict:
+    sql = f"""
+        WITH daily AS ({_daily_totals_sql(mode)}),
+        windowed AS (
+            SELECT date, total FROM daily
+            WHERE date >= date('now', 'localtime', ?)
+        )
+        SELECT
+            COALESCE(SUM(total), 0) AS total,
+            COUNT(*) AS active_days,
+            (SELECT date FROM windowed ORDER BY total DESC, date DESC LIMIT 1) AS best_date,
+            (SELECT total FROM windowed ORDER BY total DESC, date DESC LIMIT 1) AS best_total,
+            (SELECT date FROM windowed ORDER BY total ASC, date DESC LIMIT 1) AS low_date,
+            (SELECT total FROM windowed ORDER BY total ASC, date DESC LIMIT 1) AS low_total
+        FROM windowed
+    """
+    row = conn.execute(sql, (f"-{days - 1} days",)).fetchone()
+    total = row["total"] or 0
+    return {
+        "total": total,
+        "daily_avg": total // days if days else 0,
+        "active_days": row["active_days"] or 0,
+        "window_days": days,
+        "best_date": row["best_date"] or "",
+        "best_total": row["best_total"] or 0,
+        "low_date": row["low_date"] or "",
+        "low_total": row["low_total"] or 0,
+    }
+
+
 def get_week_totals(conn: sqlite3.Connection) -> tuple[int, int]:
     row = conn.execute("""
         WITH combined AS (

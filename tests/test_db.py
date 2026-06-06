@@ -6,11 +6,14 @@ import pytest
 from tapstats.db import (
     _init,
     flush,
+    get_all_time_keys,
     get_all_time_top_keys,
     get_day_stats,
     get_history,
+    get_history_summary,
     get_lifetime_stats,
     get_lifetime_totals,
+    get_period_totals,
     get_top_keys,
     get_week_totals,
 )
@@ -98,3 +101,70 @@ def test_get_lifetime_stats(conn):
     assert stats["first_date"] == "2026-05-10"
     assert stats["record_date"] == "2026-05-10"
     assert stats["record_total"] == 110
+
+
+def test_get_all_time_keys(conn):
+    _seed(conn, "2026-05-10", {"KEY_A": 100, "KEY_B": 30}, {})
+    _seed(conn, "2026-05-11", {"KEY_A": 50, "KEY_C": 20}, {})
+
+    rows = get_all_time_keys(conn)
+
+    assert rows == [
+        {"key_name": "KEY_A", "count": 150},
+        {"key_name": "KEY_B", "count": 30},
+        {"key_name": "KEY_C", "count": 20},
+    ]
+
+
+def test_get_period_totals_total_mode(conn):
+    today = date.today()
+    _seed(conn, str(today), {"KEY_A": 100}, {"left": 10, "scroll_up": 999})
+    _seed(conn, str(today - timedelta(days=3)), {"KEY_B": 50}, {"right": 5})
+    _seed(conn, str(today - timedelta(days=9)), {"KEY_C": 20}, {"left": 2})
+
+    this_period, previous_period = get_period_totals(conn, days=7, mode="total")
+
+    assert this_period == 165
+    assert previous_period == 22
+
+
+def test_get_period_totals_keyboard_mode(conn):
+    today = date.today()
+    _seed(conn, str(today), {"KEY_A": 100}, {"left": 10})
+    _seed(conn, str(today - timedelta(days=8)), {"KEY_B": 50}, {"left": 5})
+
+    this_period, previous_period = get_period_totals(conn, days=7, mode="keyboard")
+
+    assert this_period == 100
+    assert previous_period == 50
+
+
+def test_get_period_totals_mouse_mode_excludes_scroll(conn):
+    today = date.today()
+    _seed(conn, str(today), {"KEY_A": 100}, {"left": 10, "scroll_down": 900})
+    _seed(conn, str(today - timedelta(days=8)), {"KEY_B": 50}, {"right": 5, "scroll_up": 700})
+
+    this_period, previous_period = get_period_totals(conn, days=7, mode="mouse")
+
+    assert this_period == 10
+    assert previous_period == 5
+
+
+def test_get_history_summary(conn):
+    today = date.today()
+    _seed(conn, str(today), {"KEY_A": 100}, {"left": 10})
+    _seed(conn, str(today - timedelta(days=1)), {"KEY_B": 50}, {"right": 5})
+    _seed(conn, str(today - timedelta(days=2)), {"KEY_C": 20}, {})
+
+    summary = get_history_summary(conn, days=7, mode="total")
+
+    assert summary == {
+        "total": 185,
+        "daily_avg": 26,
+        "active_days": 3,
+        "window_days": 7,
+        "best_date": str(today),
+        "best_total": 110,
+        "low_date": str(today - timedelta(days=2)),
+        "low_total": 20,
+    }
