@@ -144,56 +144,6 @@ class TabBar(Static):
 
 # ── overview tab ─────────────────────────────────────────────────────────────
 
-class TodayHeader(Static):
-    keyboard_total: reactive[int] = reactive(0)
-    clicks: reactive[int] = reactive(0)
-    date: reactive[str] = reactive("")
-    pinned: reactive[bool] = reactive(False)
-
-    def render(self) -> str:
-        total = self.keyboard_total + self.clicks
-        date_tag = f" [dim](pinned: {self.date}  Esc to return)[/dim]" if self.pinned else f" [dim]{self.date}[/dim]"
-        return (
-            f"[bold]TOTAL ACTIONS[/bold]{date_tag}\n"
-            f"[bold green]{total:,}[/bold green]\n"
-            f"[dim]\U000f030c {self.keyboard_total:,}  \U000f037d {self.clicks:,}[/dim]"
-        )
-
-
-class TodayKeyboard(Static):
-    keyboard_total: reactive[int] = reactive(0)
-    top_keys: reactive[list] = reactive([])
-
-    def render(self) -> str:
-        if not self.top_keys:
-            return f"[bold]KEYBOARD[/bold]  [green]{self.keyboard_total:,}[/green]\n\n[dim]No data[/dim]"
-        max_count = self.top_keys[0][1] if self.top_keys else 1
-        lines = [f"[bold]KEYBOARD[/bold]  [green]{self.keyboard_total:,}[/green]\n"]
-        for i, (name, count) in enumerate(self.top_keys[:5]):
-            label = name.replace("KEY_", "")[:10]
-            color = BAR_COLORS[i % len(BAR_COLORS)]
-            bar = _bar(count, max_count, 14)
-            lines.append(f"[dim]{label:<10}[/dim]  [{color}]{bar}[/{color}]")
-        return "\n".join(lines)
-
-
-class TodayMouse(Static):
-    mouse: reactive[dict] = reactive({})
-
-    def render(self) -> str:
-        m = self.mouse
-        clicks = m.get("left", 0) + m.get("right", 0) + m.get("middle", 0)
-        scroll = m.get("scroll_up", 0) + m.get("scroll_down", 0)
-        return (
-            f"[bold]MOUSE CLICKS[/bold]  [blue]{clicks:,}[/blue]\n\n"
-            f"[dim]Left   [/dim][blue]{m.get('left', 0):>8,}[/blue]\n"
-            f"[dim]Right  [/dim][blue]{m.get('right', 0):>8,}[/blue]\n"
-            f"[dim]Middle [/dim][blue]{m.get('middle', 0):>8,}[/blue]\n\n"
-            f"[dim]Scroll [/dim][#bb9af7]±{scroll:,} lines[/#bb9af7]\n"
-            f"[dim](not counted in total)[/dim]"
-        )
-
-
 class OverviewView(Static):
     keyboard_total: reactive[int] = reactive(0)
     top_keys: reactive[list] = reactive([])
@@ -594,63 +544,6 @@ class HistoryView(Static):
     def action_mode_total(self) -> None:
         self.mode = "total"
         self.app.action_refresh()  # type: ignore[attr-defined]
-
-
-class LifetimeView(Static):
-    stats: reactive[dict] = reactive({})
-    top_keys: reactive[list] = reactive([])
-
-    def compose(self) -> ComposeResult:
-        yield Static(id="lifetime-header")
-        with Horizontal(id="lifetime-cols"):
-            yield Static(id="lifetime-bars")
-            yield Static(id="lifetime-stats")
-
-    def watch_stats(self, v: dict) -> None:
-        self._update_header(v)
-        self._update_stats(v)
-
-    def watch_top_keys(self, v: list) -> None:
-        self._update_bars(v)
-
-    def _update_header(self, v: dict) -> None:
-        total = v.get("total", 0)
-        kb = v.get("keyboard", 0)
-        mouse = v.get("mouse", 0)
-        first = v.get("first_date", "")
-        days = v.get("active_days", 0)
-        self.query_one("#lifetime-header", Static).update(
-            f"[bold]ALL-TIME TOTAL ACTIONS[/bold]  [dim]since {first}[/dim]\n"
-            f"[bold #ff9e64]{total:,}[/bold #ff9e64]\n"
-            f"[dim]\U000f030c {kb:,}  \U000f037d {mouse:,}  ({days} active days)[/dim]"
-        )
-
-    def _update_bars(self, keys: list) -> None:
-        if not keys:
-            self.query_one("#lifetime-bars", Static).update("[dim]No data[/dim]")
-            return
-        max_count = keys[0][1] if keys else 1
-        lines = ["[bold]ALL-TIME TOP KEYS[/bold]\n"]
-        for i, (name, count) in enumerate(keys):
-            color = BAR_COLORS[i % len(BAR_COLORS)]
-            label = name.replace("KEY_", "")[:12]
-            bar = _bar(count, max_count, 22)
-            lines.append(f"[{color}]{label:<12}[/{color}]  [{color}]{bar}[/{color}]  [dim]{count:,}[/dim]")
-        self.query_one("#lifetime-bars", Static).update("\n".join(lines))
-
-    def _update_stats(self, v: dict) -> None:
-        total = v.get("total", 0)
-        days = v.get("active_days", 0)
-        daily_avg = total // days if days else 0
-        record_total = v.get("record_total", 0)
-        record_date = v.get("record_date", "—")
-        self.query_one("#lifetime-stats", Static).update(
-            f"[bold]STATS[/bold]\n\n"
-            f"[dim]Active days[/dim]   [green]{days:,}[/green]\n"
-            f"[dim]Daily avg  [/dim]   [green]{daily_avg:,}[/green]\n\n"
-            f"[dim]Record day [/dim]   [#ff9e64]{record_total:,}[/#ff9e64]\n"
-            f"[dim]           [/dim]   [dim]{record_date}[/dim]"
-        )
 
 
 # ── app ───────────────────────────────────────────────────────────────────────
