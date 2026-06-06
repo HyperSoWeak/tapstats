@@ -1,7 +1,16 @@
 import pytest
 
 # These will be importable once panel.py is rewritten
-from tapstats.panel import _bar, _compact, _heat_level, _spark_char
+from tapstats.panel import (
+    _bar,
+    _click_total,
+    _compact,
+    _delta_text,
+    _heat_level,
+    _scroll_total,
+    _spark_char,
+    _trend_text,
+)
 
 
 def test_heat_level_zero():
@@ -54,3 +63,22 @@ def test_compact_1500():
 
 def test_compact_2000():
     assert _compact(2000) == "2k"
+
+
+def test_click_total_excludes_scroll():
+    assert _click_total({"left": 10, "right": 5, "middle": 2, "scroll_up": 100}) == 17
+
+
+def test_scroll_total_combines_directions():
+    assert _scroll_total({"scroll_up": 100, "scroll_down": 50}) == 150
+
+
+def test_delta_text_positive_negative_and_zero_previous():
+    assert _delta_text(112, 100) == "+12.0%"
+    assert _delta_text(80, 100) == "-20.0%"
+    assert _delta_text(80, 0) == ""
+
+
+def test_trend_text_uses_spark_chars():
+    rows = [{"total": 0}, {"total": 50}, {"total": 100}]
+    assert _trend_text(rows) == " ▄█"

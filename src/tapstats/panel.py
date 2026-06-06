@@ -100,6 +100,27 @@ def _spark_char(value: int, max_val: int) -> str:
     return SPARK[min(8, round(value / max_val * 8))]
 
 
+def _click_total(mouse: dict) -> int:
+    return mouse.get("left", 0) + mouse.get("right", 0) + mouse.get("middle", 0)
+
+
+def _scroll_total(mouse: dict) -> int:
+    return mouse.get("scroll_up", 0) + mouse.get("scroll_down", 0)
+
+
+def _delta_text(current: int, previous: int) -> str:
+    if previous == 0:
+        return ""
+    delta = (current - previous) / previous * 100
+    sign = "+" if delta >= 0 else ""
+    return f"{sign}{delta:.1f}%"
+
+
+def _trend_text(rows: list[dict]) -> str:
+    max_val = max((r["total"] for r in rows), default=0)
+    return "".join(_spark_char(r["total"], max_val) for r in rows)
+
+
 # ── messages ─────────────────────────────────────────────────────────────────
 
 class DrillDown(Message):
