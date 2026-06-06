@@ -8,7 +8,7 @@ from rich.text import Text
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal
+from textual.containers import Container, Horizontal
 from textual.reactive import reactive
 from textual.widgets import ContentSwitcher, Footer, ListItem, ListView, Static
 
@@ -144,7 +144,7 @@ class TabBar(Static):
 
 # ── overview tab ─────────────────────────────────────────────────────────────
 
-class OverviewView(Static):
+class OverviewView(Container):
     keyboard_total: reactive[int] = reactive(0)
     top_keys: reactive[list] = reactive([])
     mouse: reactive[dict] = reactive({})
@@ -152,6 +152,9 @@ class OverviewView(Static):
     this_period: reactive[int] = reactive(0)
     previous_period: reactive[int] = reactive(0)
     lifetime: reactive[dict] = reactive({})
+
+    def render(self) -> str:
+        return ""
 
     def compose(self) -> ComposeResult:
         yield Static(id="overview-today")
@@ -163,37 +166,37 @@ class OverviewView(Static):
             yield Static(id="overview-lifetime")
 
     def on_mount(self) -> None:
-        self._render()
+        self._update_display()
 
     def watch_keyboard_total(self, _: int) -> None:
         if self.is_mounted:
-            self._render()
+            self._update_display()
 
     def watch_top_keys(self, _: list) -> None:
         if self.is_mounted:
-            self._render()
+            self._update_display()
 
     def watch_mouse(self, _: dict) -> None:
         if self.is_mounted:
-            self._render()
+            self._update_display()
 
     def watch_trend_rows(self, _: list) -> None:
         if self.is_mounted:
-            self._render()
+            self._update_display()
 
     def watch_this_period(self, _: int) -> None:
         if self.is_mounted:
-            self._render()
+            self._update_display()
 
     def watch_previous_period(self, _: int) -> None:
         if self.is_mounted:
-            self._render()
+            self._update_display()
 
     def watch_lifetime(self, _: dict) -> None:
         if self.is_mounted:
-            self._render()
+            self._update_display()
 
-    def _render(self) -> None:
+    def _update_display(self) -> None:
         clicks = _click_total(self.mouse)
         scroll = _scroll_total(self.mouse)
         total = self.keyboard_total + clicks
@@ -291,7 +294,7 @@ class KeysBars(Static):
         return "\n".join(lines)
 
 
-class KeysView(Static):
+class KeysView(Container):
     BINDINGS = [
         Binding("h", "mode_heatmap", "Heatmap", show=True),
         Binding("b", "mode_bars",    "Bars",    show=True),
@@ -304,6 +307,9 @@ class KeysView(Static):
     mode: reactive[str] = reactive("heatmap")
     scope: reactive[str] = reactive("day")
     key_data: reactive[dict] = reactive({})
+
+    def render(self) -> str:
+        return ""
 
     def compose(self) -> ComposeResult:
         yield Static(id="keys-header")
@@ -392,7 +398,7 @@ class HistoryItem(ListItem):
         yield Static(text)
 
 
-class HistoryView(Static):
+class HistoryView(Container):
     BINDINGS = [
         Binding("enter", "drill_down", "Drill down", show=True),
         Binding("escape", "exit_detail", "Back", show=False),
@@ -410,6 +416,9 @@ class HistoryView(Static):
     summary: reactive[dict] = reactive({})
     detail_date: reactive[str | None] = reactive(None)
     detail_stats: reactive[dict] = reactive({})
+
+    def render(self) -> str:
+        return ""
 
     def compose(self) -> ComposeResult:
         yield Static(id="history-trend")
