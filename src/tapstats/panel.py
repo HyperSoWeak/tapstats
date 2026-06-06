@@ -36,7 +36,9 @@ HEAT_FG = [
     "#3a4050", "#5a8a6a", "#7ab88a", "#8dd4a0",
     "#a8e8bc", "#c0f0d0", "#e0ffe8", "#ffffff", "#0d3320",
 ]
-BAR_COLORS = ["#9ece6a", "#7aa2f7", "#bb9af7", "#ff9e64", "#f7768e", "#7dcfff", "#e0af68", "#2ac3de"]
+PRIMARY = "#7dcfff"
+ACCENT = "#9ece6a"
+WARN = "#e0af68"
 
 # (db_key_name, display_label, cell_width_chars)
 # None = visual gap between key groups
@@ -133,12 +135,12 @@ class TabBar(Static):
     ]
 
     def render(self) -> str:
-        parts = []
+        parts = [f"[bold {PRIMARY}]tapstats[/bold {PRIMARY}]", f"[dim]{date_type.today()}[/dim]", ""]
         for key, label in self._TABS:
             if key == self.active:
-                parts.append(f"[reverse bold] {label} [/reverse bold]")
+                parts.append(f"[reverse bold {PRIMARY}] {label.lower()} [/reverse bold {PRIMARY}]")
             else:
-                parts.append(f"[dim] {label} [/dim]")
+                parts.append(f"[dim] {label.lower()} [/dim]")
         return "  ".join(parts)
 
 
@@ -166,6 +168,11 @@ class OverviewView(Container):
             yield Static(id="overview-lifetime")
 
     def on_mount(self) -> None:
+        self.query_one("#overview-today", Static).border_title = "today"
+        self.query_one("#overview-top-keys", Static).border_title = "keyboard"
+        self.query_one("#overview-trend", Static).border_title = "activity"
+        self.query_one("#overview-mouse", Static).border_title = "mouse"
+        self.query_one("#overview-lifetime", Static).border_title = "lifetime"
         self._update_display()
 
     def watch_keyboard_total(self, _: int) -> None:
@@ -207,39 +214,37 @@ class OverviewView(Container):
         lifetime_avg = lifetime_total // lifetime_days if lifetime_days else 0
 
         self.query_one("#overview-today", Static).update(
-            f"[bold]TODAY[/bold]  [dim]{date_type.today()}[/dim]\n"
-            f"[bold green]{total:,} actions[/bold green]\n"
-            f"[dim]keys {self.keyboard_total:,}  clicks {clicks:,}  scroll ±{scroll:,}[/dim]"
+            f"[bold {PRIMARY}]{total:,}[/bold {PRIMARY}] [dim]actions[/dim]\n"
+            f"[dim]keys[/dim] {self.keyboard_total:,}   "
+            f"[dim]clicks[/dim] {clicks:,}   "
+            f"[dim]scroll[/dim] {scroll:,}"
         )
 
-        top_lines = ["[bold]TOP KEYS TODAY[/bold]"]
+        top_lines = []
         if self.top_keys:
             max_count = self.top_keys[0][1]
-            for i, (name, count) in enumerate(self.top_keys[:5]):
-                color = BAR_COLORS[i % len(BAR_COLORS)]
+            for name, count in self.top_keys[:5]:
                 label = name.replace("KEY_", "")[:10]
-                top_lines.append(f"[dim]{label:<10}[/dim] [{color}]{_bar(count, max_count, 12)}[/{color}] {count:,}")
+                bar = _bar(count, max_count, 10)
+                top_lines.append(f"[dim]{label:<10}[/dim] [{PRIMARY}]{bar}[/{PRIMARY}] {count:,}")
         else:
             top_lines.append("[dim]No data[/dim]")
         self.query_one("#overview-top-keys", Static).update("\n".join(top_lines))
 
         self.query_one("#overview-trend", Static).update(
-            f"[bold]7-DAY TREND[/bold]\n"
-            f"[green]{_trend_text(self.trend_rows)}[/green]\n"
-            f"[dim]this 7d[/dim] {self.this_period:,}{delta_part}"
+            f"[{ACCENT}]{_trend_text(self.trend_rows)}[/{ACCENT}]\n"
+            f"[dim]7d[/dim] {self.this_period:,}{delta_part}"
         )
 
         self.query_one("#overview-mouse", Static).update(
-            f"[bold]MOUSE TODAY[/bold]\n"
             f"[dim]left[/dim] {self.mouse.get('left', 0):,}  "
             f"[dim]right[/dim] {self.mouse.get('right', 0):,}\n"
             f"[dim]middle[/dim] {self.mouse.get('middle', 0):,}  "
-            f"[dim]scroll[/dim] ±{scroll:,}"
+            f"[dim]scroll[/dim] {scroll:,}"
         )
 
         self.query_one("#overview-lifetime", Static).update(
-            f"[bold]LIFETIME[/bold]\n"
-            f"[#ff9e64]{lifetime_total:,} actions[/#ff9e64]\n"
+            f"[{WARN}]{lifetime_total:,}[/{WARN}] [dim]total[/dim]\n"
             f"[dim]avg/day[/dim] {lifetime_avg:,}\n"
             f"[dim]record[/dim] {self.lifetime.get('record_total', 0):,}  "
             f"[dim]{self.lifetime.get('record_date', '')}[/dim]"
@@ -286,11 +291,10 @@ class KeysBars(Static):
         items = sorted(self.key_data.items(), key=lambda x: x[1], reverse=True)
         max_count = items[0][1] if items else 1
         lines = []
-        for i, (name, count) in enumerate(items):
-            color = BAR_COLORS[i % len(BAR_COLORS)]
+        for name, count in items:
             label = name.replace("KEY_", "")[:12]
             bar = _bar(count, max_count, 22)
-            lines.append(f"[{color}]{label:<12}[/{color}]  [{color}]{bar}[/{color}]  [dim]{count:,}[/dim]")
+            lines.append(f"[dim]{label:<12}[/dim]  [{PRIMARY}]{bar}[/{PRIMARY}]  {count:,}")
         return "\n".join(lines)
 
 
@@ -318,6 +322,7 @@ class KeysView(Container):
             yield KeysBars(id="keys-bars")
 
     def on_mount(self) -> None:
+        self.query_one("#keys-header", Static).border_title = "keys"
         self.view_date = str(date_type.today())
 
     def watch_view_date(self, new: str) -> None:
@@ -382,17 +387,16 @@ class KeysView(Container):
 
 
 class HistoryItem(ListItem):
-    def __init__(self, row: dict, color: str, max_val: int) -> None:
+    def __init__(self, row: dict, max_val: int) -> None:
         super().__init__()
         self._row = row
-        self._color = color
         self._max_val = max_val
 
     def compose(self) -> ComposeResult:
         bar = _bar(self._row["total"], self._max_val, 28)
         text = (
             f"[dim]{self._row['date']}[/dim]  "
-            f"[{self._color}]{bar}[/{self._color}]  "
+            f"[{PRIMARY}]{bar}[/{PRIMARY}]  "
             f"{self._row['total']:,}"
         )
         yield Static(text)
@@ -428,6 +432,10 @@ class HistoryView(Container):
         yield Static(id="history-footer")
 
     def on_mount(self) -> None:
+        self.query_one("#history-trend", Static).border_title = "trend"
+        self.query_one("#history-records", Static).border_title = "records"
+        self.query_one("#history-list", ListView).border_title = "daily"
+        self.query_one("#history-detail", Static).border_title = "detail"
         self.query_one("#history-detail", Static).display = False
         self._update_analytics()
 
@@ -474,21 +482,19 @@ class HistoryView(Container):
         lv.clear()
         displayed = list(reversed(rows))
         max_val = max((r["total"] for r in displayed), default=1)
-        for i, row in enumerate(displayed):
-            color = BAR_COLORS[i % len(BAR_COLORS)]
-            lv.append(HistoryItem(row, color, max_val))
+        for row in displayed:
+            lv.append(HistoryItem(row, max_val))
 
     def _update_analytics(self) -> None:
         delta = _delta_text(self.this_week, self.last_week)
         delta_part = f"  [dim]{delta}[/dim]" if delta else ""
         self.query_one("#history-trend", Static).update(
-            f"[bold]TREND[/bold]  [dim]{self.mode}[/dim]\n"
-            f"7d  [green]{_trend_text(self.trend_7d)}[/green]  {self.this_week:,}{delta_part}\n"
-            f"30d [blue]{_trend_text(self.trend_30d)}[/blue]  "
+            f"[dim]{self.mode}[/dim]\n"
+            f"7d  [{ACCENT}]{_trend_text(self.trend_7d)}[/{ACCENT}]  {self.this_week:,}{delta_part}\n"
+            f"30d [{PRIMARY}]{_trend_text(self.trend_30d)}[/{PRIMARY}]  "
             f"[dim]avg/day[/dim] {self.summary.get('daily_avg', 0):,}"
         )
         self.query_one("#history-records", Static).update(
-            f"[bold]RECORDS[/bold]\n"
             f"[dim]best day[/dim]   {self.summary.get('best_total', 0):,}  "
             f"[dim]{self.summary.get('best_date', '')}[/dim]\n"
             f"[dim]low day [/dim]   {self.summary.get('low_total', 0):,}  "
@@ -514,20 +520,18 @@ class HistoryView(Container):
         keyboard_total = self.detail_stats.get("keyboard_total", 0)
         total = keyboard_total + clicks
         lines = [
-            f"[bold]DETAIL {self.detail_date}[/bold]",
-            f"[green]{total:,} total[/green]  [dim]keys {keyboard_total:,}  clicks {clicks:,}  scroll ±{scroll:,}[/dim]",
+            f"[{PRIMARY}]{total:,} total[/{PRIMARY}]  [dim]keys {keyboard_total:,}  clicks {clicks:,}  scroll {scroll:,}[/dim]",
             "",
-            "[bold]TOP KEYS[/bold]",
+            "[dim]top keys[/dim]",
         ]
         top_keys = self.detail_stats.get("top_keys", [])
         max_count = top_keys[0][1] if top_keys else 0
-        for i, (name, count) in enumerate(top_keys[:5]):
-            color = BAR_COLORS[i % len(BAR_COLORS)]
+        for name, count in top_keys[:5]:
             label = name.replace("KEY_", "")[:10]
-            lines.append(f"[dim]{label:<10}[/dim] [{color}]{_bar(count, max_count, 12)}[/{color}] {count:,}")
+            lines.append(f"[dim]{label:<10}[/dim] [{PRIMARY}]{_bar(count, max_count, 12)}[/{PRIMARY}] {count:,}")
         lines.extend([
             "",
-            "[bold]MOUSE[/bold]",
+            "[dim]mouse[/dim]",
             f"[dim]left[/dim] {mouse.get('left', 0):,}  [dim]right[/dim] {mouse.get('right', 0):,}  [dim]middle[/dim] {mouse.get('middle', 0):,}",
         ])
         detail.update("\n".join(lines))
@@ -561,11 +565,11 @@ class TapStatsApp(App):
     TITLE = "tapstats"
     CSS = """
     Screen {
-        background: $surface;
+        background: #070b10;
     }
     TabBar {
         height: 1;
-        background: $surface;
+        background: #070b10;
         padding: 0 1;
         dock: top;
     }
@@ -574,11 +578,12 @@ class TapStatsApp(App):
     }
     OverviewView {
         height: 100%;
-        padding: 1 2;
+        padding: 1;
     }
     #overview-today {
         height: 5;
-        border-bottom: solid $accent-darken-1;
+        border: round #25566a;
+        padding: 0 1;
         margin-bottom: 1;
     }
     #overview-row-a, #overview-row-b {
@@ -589,66 +594,77 @@ class TapStatsApp(App):
     }
     #overview-top-keys, #overview-mouse {
         width: 1fr;
-        padding-right: 2;
-        border-right: solid $accent-darken-1;
+        border: round #25566a;
+        padding: 0 1;
+        margin-right: 1;
     }
     #overview-trend, #overview-lifetime {
         width: 34;
-        padding-left: 2;
+        border: round #25566a;
+        padding: 0 1;
     }
     HistoryView {
         height: 100%;
-        padding: 1 2;
+        padding: 1;
     }
     #history-trend {
-        height: 3;
+        height: 5;
+        border: round #25566a;
+        padding: 0 1;
         margin-bottom: 1;
     }
     #history-records {
-        height: 4;
+        height: 5;
+        border: round #25566a;
+        padding: 0 1;
         margin-bottom: 1;
     }
     #history-list {
         height: 1fr;
-        border: none;
+        border: round #25566a;
+        padding: 0 1;
     }
     #history-detail {
         height: 10;
-        border-top: solid $accent-darken-1;
+        border: round #25566a;
         margin-top: 1;
-        padding-top: 1;
+        padding: 0 1;
     }
     #history-footer {
         height: 1;
         margin-top: 1;
-        border-top: solid $accent-darken-1;
-        padding-top: 1;
     }
     HistoryItem {
         padding: 0 0;
         height: 1;
     }
     HistoryItem.--highlight {
-        background: $accent-darken-2;
+        background: #14313d;
     }
     KeysView {
         height: 100%;
-        padding: 1 2;
+        padding: 1;
     }
     #keys-header {
-        height: 1;
+        height: 3;
+        border: round #25566a;
+        padding: 0 1;
         margin-bottom: 1;
     }
     KeyboardHeatmap {
         height: auto;
+        border: round #25566a;
+        padding: 1;
     }
     KeysBars {
         height: 1fr;
+        border: round #25566a;
+        padding: 0 1;
         overflow-y: auto;
     }
     Footer {
-        background: $surface;
-        color: $text-muted;
+        background: #070b10;
+        color: #565f70;
     }
     """
     BINDINGS = [
