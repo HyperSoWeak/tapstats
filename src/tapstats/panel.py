@@ -345,12 +345,14 @@ class KeysView(Static):
     BINDINGS = [
         Binding("h", "mode_heatmap", "Heatmap", show=True),
         Binding("b", "mode_bars",    "Bars",    show=True),
+        Binding("a", "toggle_scope", "All-time", show=True),
         Binding("left",  "prev_day", "Prev day", show=False),
         Binding("right", "next_day", "Next day", show=False),
     ]
 
     view_date: reactive[str] = reactive("")
     mode: reactive[str] = reactive("heatmap")
+    scope: reactive[str] = reactive("day")
     key_data: reactive[dict] = reactive({})
 
     def compose(self) -> ComposeResult:
@@ -376,19 +378,28 @@ class KeysView(Static):
         switcher.current = "keys-heatmap" if v == "heatmap" else "keys-bars"
         self._update_header()
 
+    def watch_scope(self, _: str) -> None:
+        self._load_data()
+
     def _load_data(self) -> None:
         if not hasattr(self.app, "db"):
             return
-        rows = get_top_keys(self.app.db, self.view_date, limit=None)  # type: ignore[attr-defined]
-        self.key_data = {r["key_name"]: r["count"] for r in rows}
+        if self.scope == "all-time":
+            rows = get_all_time_keys(self.app.db)  # type: ignore[attr-defined]
+            self.key_data = {r["key_name"]: r["count"] for r in rows}
+        else:
+            rows = get_top_keys(self.app.db, self.view_date, limit=None)  # type: ignore[attr-defined]
+            self.key_data = {r["key_name"]: r["count"] for r in rows}
         self._update_header()
 
     def _update_header(self) -> None:
         mode_label = "heatmap (b: bars)" if self.mode == "heatmap" else "bars (h: heatmap)"
         is_today = self.view_date == str(date_type.today())
         date_label = "today" if is_today else self.view_date
+        scope_label = "all-time" if self.scope == "all-time" else date_label
+        nav_hint = "a: day" if self.scope == "all-time" else "←/→ days  a: all-time"
         self.query_one("#keys-header", Static).update(
-            f"[bold]KEYS[/bold]  [dim]{date_label}  ←/→ navigate days  {mode_label}[/dim]"
+            f"[bold]KEYS[/bold]  [dim]{scope_label}  {nav_hint}  {mode_label}[/dim]"
         )
 
     def action_mode_heatmap(self) -> None:
@@ -398,13 +409,20 @@ class KeysView(Static):
         self.mode = "bars"
 
     def action_prev_day(self) -> None:
+        if self.scope == "all-time":
+            return
         d = date_type.fromisoformat(self.view_date) - timedelta(days=1)
         self.view_date = str(d)
 
     def action_next_day(self) -> None:
+        if self.scope == "all-time":
+            return
         d = date_type.fromisoformat(self.view_date) + timedelta(days=1)
         if d <= date_type.today():
             self.view_date = str(d)
+
+    def action_toggle_scope(self) -> None:
+        self.scope = "day" if self.scope == "all-time" else "all-time"
 
 
 class HistoryItem(ListItem):
